@@ -1,0 +1,166 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>Ley de Gauss — UAM Azcapotzalco</title>
+  <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;600;700&display=swap" rel="stylesheet">
+  <link rel="stylesheet" href="styles.css">
+</head>
+<body>
+  <canvas id="canvas"></canvas>
+
+  <div id="panel" class="glass-panel">
+    <h1>Ley de Gauss</h1>
+    <p class="law">&#8750;<b>E</b>&#183;d<b>A</b> = Q<sub>enc</sub>/&#949;<sub>0</sub></p>
+
+    <div class="section">
+      <label class="section-label">Escenario</label>
+      <select id="scenarioSelect">
+        <option value="point_charge">Carga puntual</option>
+        <option value="conducting_sphere">Esfera conductora</option>
+        <option value="insulating_sphere">Esfera aislante (&#961; uniforme)</option>
+        <option value="spherical_shell">Concha esf&#233;rica</option>
+        <option value="infinite_line">L&#237;nea de carga (cilindro gaussiano)</option>
+        <option value="infinite_plane">Plano infinito (pillbox)</option>
+        <option value="capacitor">Condensador de placas paralelas</option>
+        <option value="magnetic">Gauss magn&#233;tico: &#8750;B&#183;dA = 0</option>
+      </select>
+    </div>
+
+    <div class="params-section">
+      <div class="slider-group" id="pg-Q">
+        <label>Carga Q <span id="pv-Q">2.0 nC</span></label>
+        <input type="range" id="ps-Q" min="-10" max="10" step="0.5" value="2">
+      </div>
+      <div class="slider-group" id="pg-R">
+        <label>Radio fuente R <span id="pv-R">1.5 m</span></label>
+        <input type="range" id="ps-R" min="0.3" max="3.0" step="0.1" value="1.5">
+      </div>
+      <div class="slider-group" id="pg-rg">
+        <label>Radio gaussiano r <span id="pv-rg">2.5 m</span></label>
+        <input type="range" id="ps-rg" min="0.1" max="5.0" step="0.05" value="2.5">
+      </div>
+      <div class="slider-group" id="pg-lam">
+        <label>Densidad lineal &#955; <span id="pv-lam">1.0 nC/m</span></label>
+        <input type="range" id="ps-lam" min="-5" max="5" step="0.5" value="1">
+      </div>
+      <div class="slider-group" id="pg-sig">
+        <label>Densidad superficial &#963; <span id="pv-sig">1.0 nC/m&#178;</span></label>
+        <input type="range" id="ps-sig" min="-5" max="5" step="0.5" value="1">
+      </div>
+      <div class="slider-group" id="pg-d">
+        <label>Separaci&#243;n placas d <span id="pv-d">2.0 m</span></label>
+        <input type="range" id="ps-d" min="0.5" max="4.0" step="0.25" value="2">
+      </div>
+    </div>
+
+    <div class="readout-panel">
+      <div class="readout-title">Superficie gaussiana</div>
+      <div class="readout-row">
+        <span class="readout-key">Q<sub>enc</sub></span>
+        <span class="readout-val" id="ro-Qenc">—</span>
+      </div>
+      <div class="readout-row">
+        <span class="readout-key">&#934;<sub>E</sub></span>
+        <span class="readout-val" id="ro-flux">—</span>
+      </div>
+      <div class="readout-row">
+        <span class="readout-key">|E| en r</span>
+        <span class="readout-val" id="ro-E">—</span>
+      </div>
+    </div>
+
+    <div class="formula-card" id="formulaCard">
+      <div class="formula-lines" id="formulaBody"></div>
+    </div>
+
+    <div class="options-section">
+      <label class="opt-row"><input type="checkbox" id="optLines" checked> L&#237;neas de campo</label>
+      <label class="opt-row"><input type="checkbox" id="optFlux" checked> Flechas de flujo</label>
+      <label class="opt-row"><input type="checkbox" id="optGraph" checked> Gr&#225;fica E(r)</label>
+      <label class="opt-row"><input type="checkbox" id="optGrid"> Cuadr&#237;cula</label>
+    </div>
+
+    <div class="legend">
+      Arrastra la <span class="gauss-accent">superficie gaussiana</span> (c&#237;rculo discontinuo) para cambiar su radio
+    </div>
+  </div>
+
+  <!-- Lessons toggle button -->
+  <button id="btnToggleLessons" class="lessons-toggle-btn" title="Abrir lecciones">&#9654; Lecciones</button>
+
+  <!-- Lesson panel (right side) -->
+  <div id="lessonPanel" class="glass-panel lesson-panel hidden">
+    <div class="lesson-panel-header">
+      <h2>Lecciones</h2>
+      <button id="btnCloseLessons" class="icon-btn" title="Cerrar">&times;</button>
+    </div>
+
+    <div id="lessonList" class="lesson-list"></div>
+
+    <div id="lessonDetail" class="lesson-detail hidden">
+      <div class="lesson-detail-header">
+        <span id="lessonDetailId" class="lesson-id-badge"></span>
+        <button id="btnCloseLesson" class="icon-btn small" title="Cerrar lección">&times;</button>
+      </div>
+      <h3 id="lessonDetailTitle"></h3>
+      <p class="lesson-objective" id="lessonDetailObjective"></p>
+
+      <div class="lesson-section">
+        <button class="collapsible-btn" data-target="theoryBody">Teor&#237;a &#9660;</button>
+        <div id="theoryBody" class="collapsible-body hidden">
+          <p id="lessonDetailTheory"></p>
+        </div>
+      </div>
+
+      <div class="lesson-section" id="hintsSection">
+        <button class="collapsible-btn" data-target="hintsBody">Pistas &#9660;</button>
+        <div id="hintsBody" class="collapsible-body hidden">
+          <ul id="lessonDetailHints" class="hints-list"></ul>
+          <button id="btnNextHint" class="hint-btn">Siguiente pista</button>
+        </div>
+      </div>
+
+      <div class="lesson-section">
+        <button class="collapsible-btn" data-target="questionsBody">Preguntas &#9660;</button>
+        <div id="questionsBody" class="collapsible-body hidden">
+          <ol id="lessonDetailQuestions" class="questions-list"></ol>
+        </div>
+      </div>
+
+      <div class="lesson-nav">
+        <button id="btnPrevLesson" class="nav-btn">&#8592; Anterior</button>
+        <button id="btnNextLesson" class="nav-btn">Siguiente &#8594;</button>
+      </div>
+
+      <div id="challengeSection" class="challenge-section hidden">
+        <button id="btnStartChallenge" class="challenge-start-btn">&#9654; Iniciar reto</button>
+      </div>
+    </div>
+  </div>
+
+  <!-- Challenge bar (bottom) -->
+  <div id="challengeBar" class="challenge-bar hidden">
+    <div class="challenge-bar-content">
+      <span class="challenge-label">MODO RETO</span>
+      <span id="challengeDesc" class="challenge-desc"></span>
+      <div class="challenge-targets">
+        <span class="target-chip">Q<sub>enc</sub>: <b id="tgt-Qenc">—</b></span>
+        <span class="target-chip">&#934;: <b id="tgt-flux">—</b></span>
+        <span class="target-chip">E: <b id="tgt-E">—</b></span>
+      </div>
+      <div class="challenge-controls">
+        <button id="btnEvaluate" class="eval-btn">Verificar</button>
+        <div id="scoreDisplay" class="score-display hidden">
+          Similitud: <span id="scoreValue">--</span>%
+        </div>
+        <button id="btnExitChallenge" class="exit-challenge-btn">Salir</button>
+      </div>
+    </div>
+  </div>
+
+  <script src="lessons.js"></script>
+  <script src="script.js"></script>
+</body>
+</html>
