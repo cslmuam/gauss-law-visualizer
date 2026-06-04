@@ -16,6 +16,22 @@ const ctx = canvas.getContext('2d')
 let W, H, cx, cy
 const SCALE = 80   // px per meter
 
+// ── Draggable / resizable E(r) graph ─────────────────────────────────────
+let _gPos  = null   // {x,y} position override; null = default bottom-right
+let _gSize = null   // {w,h} size override; null = device default
+let _gDrag = false, _gResize = false
+let _gStart = {}    // snapshot at interaction start
+
+function getGraphRect() {
+  const mob = W < 641
+  const defW = mob ? 260 : 390, defH = mob ? 175 : 260
+  const GW = _gSize ? _gSize.w : defW
+  const GH = _gSize ? _gSize.h : defH
+  const gx = _gPos ? _gPos.x : W - GW - (mob ? 10 : 18)
+  const gy = _gPos ? _gPos.y : H - GH - (mob ? 70 : 18)
+  return {gx, gy, GW, GH}
+}
+
 // ── Scenario definitions ──────────────────────────────────────────────────
 const S = {
 
@@ -650,9 +666,7 @@ function drawMagneticField(){
 // ── E(r) graph ────────────────────────────────────────────────────────────
 function drawEGraph(){
   const mob=W<641
-  const GW=mob?260:390, GH=mob?175:260
-  const margin=mob?10:18, drawerH=mob?70:18
-  const gx=W-GW-margin, gy=H-GH-drawerH
+  const {gx,gy,GW,GH}=getGraphRect()
   const PAD=mob?{t:14,r:10,b:30,l:44}:{t:20,r:16,b:38,l:58}
   const pw=GW-PAD.l-PAD.r, ph=GH-PAD.t-PAD.b
   const px=gx+PAD.l, py=gy+PAD.t
@@ -663,6 +677,16 @@ function drawEGraph(){
   ctx.fillStyle='rgba(8,11,20,0.94)'
   ctx.beginPath();ctx.roundRect(gx,gy,GW,GH,10);ctx.fill()
   ctx.strokeStyle='rgba(255,255,255,0.11)';ctx.lineWidth=1;ctx.stroke()
+
+  // Drag handle: shaded header bar
+  ctx.fillStyle='rgba(255,255,255,0.04)'
+  ctx.beginPath();ctx.roundRect(gx,gy,GW,22,{upperLeft:10,upperRight:10,lowerLeft:0,lowerRight:0});ctx.fill()
+  // Resize grip: diagonal lines at bottom-right corner
+  const gs=mob?20:16
+  for(let i=4;i<gs;i+=4){
+    ctx.strokeStyle='rgba(255,255,255,0.22)';ctx.lineWidth=1
+    ctx.beginPath();ctx.moveTo(gx+GW-i,gy+GH-2);ctx.lineTo(gx+GW-2,gy+GH-i);ctx.stroke()
+  }
 
   const rMax=5.0, N=300
   const scen=S[sc]
@@ -871,9 +895,7 @@ function render(){
 // ── Planar E graph (E vs y) ───────────────────────────────────────────────
 function drawEGraphPlanar(){
   const mob=W<641
-  const GW=mob?260:390, GH=mob?175:260
-  const margin=mob?10:18, drawerH=mob?70:18
-  const gx=W-GW-margin, gy=H-GH-drawerH
+  const {gx,gy,GW,GH}=getGraphRect()
   const PAD=mob?{t:14,r:10,b:30,l:44}:{t:20,r:16,b:38,l:58}
   const pw=GW-PAD.l-PAD.r, ph=GH-PAD.t-PAD.b
   const px=gx+PAD.l, py=gy+PAD.t
@@ -884,6 +906,15 @@ function drawEGraphPlanar(){
   ctx.fillStyle='rgba(8,11,20,0.94)'
   ctx.beginPath();ctx.roundRect(gx,gy,GW,GH,10);ctx.fill()
   ctx.strokeStyle='rgba(255,255,255,0.11)';ctx.lineWidth=1;ctx.stroke()
+
+  // Drag handle header + resize grip (shared with drawEGraph)
+  ctx.fillStyle='rgba(255,255,255,0.04)'
+  ctx.beginPath();ctx.roundRect(gx,gy,GW,22,{upperLeft:10,upperRight:10,lowerLeft:0,lowerRight:0});ctx.fill()
+  const gs=mob?20:16
+  for(let i=4;i<gs;i+=4){
+    ctx.strokeStyle='rgba(255,255,255,0.22)';ctx.lineWidth=1
+    ctx.beginPath();ctx.moveTo(gx+GW-i,gy+GH-2);ctx.lineTo(gx+GW-2,gy+GH-i);ctx.stroke()
+  }
 
   const yRange=5.0   // meters, symmetric
   const N=300, scen=S[sc]
@@ -972,6 +1003,7 @@ function resize(){
   W=canvas.width=canvas.offsetWidth
   H=canvas.height=canvas.offsetHeight
   cx=W/2; cy=H/2
+  _gPos=null; _gSize=null   // snap graph back to default on window resize
   render()
 }
 
@@ -984,6 +1016,29 @@ function getPos(e){
 
 function onDown(e){
   const {mx,my}=getPos(e)
+
+  // Graph drag / resize takes priority when graph is visible
+  if(opts.graph){
+    const {gx,gy,GW,GH}=getGraphRect()
+    const mob=W<641
+    const gripSz=mob?22:18
+    if(mx>=gx&&mx<=gx+GW&&my>=gy&&my<=gy+GH){
+      if(mx>=gx+GW-gripSz&&my>=gy+GH-gripSz){
+        _gResize=true
+        if(!_gPos) _gPos={x:gx,y:gy}
+        if(!_gSize) _gSize={w:GW,h:GH}
+        _gStart={mx,my,w:_gSize.w,h:_gSize.h}
+        e.preventDefault?.(); return
+      }
+      if(my<=gy+22){
+        _gDrag=true
+        if(!_gPos) _gPos={x:gx,y:gy}
+        _gStart={mx,my,gx:_gPos.x,gy:_gPos.y}
+        e.preventDefault?.(); return
+      }
+    }
+  }
+
   const sym=S[sc].sym
 
   if(sym==='spherical'||sym==='cylindrical'||sym==='magnetic'){
@@ -1005,9 +1060,37 @@ function onDown(e){
 }
 
 function onMove(e){
+  const {mx,my}=getPos(e)
+
+  // Graph drag
+  if(_gDrag){
+    e.preventDefault?.()
+    const GW=_gSize?.w??390, GH=_gSize?.h??260
+    _gPos.x=Math.max(0,Math.min(W-GW,  _gStart.gx+mx-_gStart.mx))
+    _gPos.y=Math.max(0,Math.min(H-GH,  _gStart.gy+my-_gStart.my))
+    render(); return
+  }
+  // Graph resize
+  if(_gResize){
+    e.preventDefault?.()
+    const mob=W<641, minW=mob?180:220, minH=mob?130:160
+    _gSize.w=Math.max(minW,Math.min(W-_gPos.x-10, _gStart.w+mx-_gStart.mx))
+    _gSize.h=Math.max(minH,Math.min(H-_gPos.y-10, _gStart.h+my-_gStart.my))
+    render(); return
+  }
+
+  // Cursor update when hovering graph
+  if(opts.graph&&!isDragging){
+    const {gx,gy,GW,GH}=getGraphRect()
+    const mob=W<641, gripSz=mob?22:18
+    if(mx>=gx&&mx<=gx+GW&&my>=gy&&my<=gy+GH){
+      canvas.style.cursor=mx>=gx+GW-gripSz&&my>=gy+GH-gripSz?'nwse-resize':'move'
+      return
+    }
+  }
+
   if(!isDragging) return
   e.preventDefault()
-  const {mx,my}=getPos(e)
   const sym=S[sc].sym
 
   if(sym==='spherical'||sym==='cylindrical'||sym==='magnetic'){
@@ -1022,7 +1105,7 @@ function onMove(e){
   render()
 }
 
-function onUp(){ isDragging=false; canvas.classList.remove('dragging') }
+function onUp(){ _gDrag=false; _gResize=false; isDragging=false; canvas.classList.remove('dragging') }
 
 function setSlider(key,val){
   const el=document.getElementById(`ps-${key}`)
