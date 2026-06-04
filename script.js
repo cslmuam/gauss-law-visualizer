@@ -7,7 +7,7 @@ const TAU  = 2 * Math.PI
 
 // ── App state ─────────────────────────────────────────────────────────────
 let sc = 'point_charge'
-let p = { Q:2.0, R:1.5, rg:2.5, lam:1.0, sig:1.0, d:2.0 }
+let p = { Q:2.0, R:1.5, rg:2.5, lam:1.0, sig:1.0, d:2.0, yoff:0.0 }
 let opts = { lines:true, flux:true, graph:true, grid:false }
 let isDragging = false
 
@@ -172,15 +172,23 @@ const S = {
     label:'Plano infinito de carga', sym:'planar',
     show:['sig','rg'],
     getE(yDist) { return Math.abs(p.sig*1e-9)/(2*EPS0) },
-    getQenc(r)  { return p.sig*1e-9 },
+    // Pillbox encloses charge only when it straddles the plane (|y₀| < h)
+    getQenc(r)  { return Math.abs(p.yoff) < p.rg ? p.sig*1e-9 : 0 },
     formula() {
       const E=this.getE(p.rg)
-      return [
-        {t:'head', v:'Pillbox gaussiano (dos caras)'},
+      const straddles=Math.abs(p.yoff) < p.rg
+      if(straddles) return [
+        {t:'head', v:'Pillbox cruza el plano cargado'},
         {t:'key',  v:'2A·E = σA / ε₀'},
-        {t:'key',  v:'→  E = σ / (2ε₀)  — uniforme, ambos lados'},
+        {t:'key',  v:'→  E = σ / (2ε₀)  —  uniforme'},
         {t:'res',  v:`E = ${fmtE(E)}`},
-        {t:'dim',  v:'E es independiente de la distancia al plano'},
+      ]
+      return [
+        {t:'head', v:'Pillbox fuera del plano'},
+        {t:'key',  v:'+E·A − E·A = 0'},
+        {t:'key',  v:'Q_enc = 0  →  Φ_E = 0'},
+        {t:'res',  v:'Flujo neto = 0'},
+        {t:'dim',  v:`E = ${fmtE(E)} (campo local, uniforme)`},
       ]
     },
     drawSource() {}
@@ -188,20 +196,52 @@ const S = {
 
   capacitor: {
     label:'Condensador de placas paralelas', sym:'planar',
-    show:['sig','d','rg'],
+    show:['sig','d','rg','yoff'],
     getE(yDist) {
       return yDist < p.d/2 ? Math.abs(p.sig*1e-9)/EPS0 : 0
     },
     getQenc(r) {
-      return r < p.d/2 ? p.sig*1e-9 : 0
+      const crossTop = Math.abs(p.yoff - p.d/2) < p.rg
+      const crossBot = Math.abs(p.yoff + p.d/2) < p.rg
+      if(crossTop && crossBot) return 0
+      if(crossTop) return  p.sig*1e-9
+      if(crossBot) return -p.sig*1e-9
+      return 0
     },
     formula() {
-      const inside = p.rg < p.d/2, E=this.getE(p.rg)
-      return [
-        {t:'head', v: inside?'Pillbox cruza la placa (+)':'Pillbox envuelve ambas placas'},
-        {t:'key',  v: inside?'Q_enc = +σ·A  →  E = σ/ε₀':'Q_enc = +σ−σ = 0  →  E = 0'},
-        {t:'res',  v: inside?`E = ${fmtE(E)}`:'E = 0  (campos se cancelan)'},
-        {t:'dim',  v: inside?'Los campos de ambas placas se SUMAN':'Los campos de ambas placas se CANCELAN'},
+      const crossTop = Math.abs(p.yoff - p.d/2) < p.rg
+      const crossBot = Math.abs(p.yoff + p.d/2) < p.rg
+      const Eint = fmtE(this.getE(0))   // field inside the capacitor
+      if(crossTop && crossBot) return [
+        {t:'head', v:'Pillbox envuelve ambas placas'},
+        {t:'key',  v:'Q_enc = +σ − σ = 0  →  Φ_E = 0'},
+        {t:'res',  v:'E = 0  (campos se cancelan)'},
+        {t:'dim',  v:'Los campos de ambas placas se CANCELAN'},
+      ]
+      if(crossTop) return [
+        {t:'head', v:'Pillbox cruza la placa (+)'},
+        {t:'key',  v:'Q_enc = +σ·A  →  E = σ/ε₀'},
+        {t:'res',  v:`E = ${Eint}`},
+        {t:'dim',  v:'Los campos de ambas placas se SUMAN'},
+      ]
+      if(crossBot) return [
+        {t:'head', v:'Pillbox cruza la placa (−)'},
+        {t:'key',  v:'Q_enc = −σ·A  →  E = −σ/ε₀'},
+        {t:'res',  v:`E = −${Eint}`},
+        {t:'dim',  v:'Los campos de ambas placas se SUMAN'},
+      ]
+      const between = Math.abs(p.yoff) < p.d/2
+      return between ? [
+        {t:'head', v:'Pillbox entre las placas (sin cruzar)'},
+        {t:'key',  v:'+E·A − E·A = 0'},
+        {t:'key',  v:'Q_enc = 0  →  Φ_E = 0'},
+        {t:'res',  v:'Flujo neto = 0'},
+        {t:'dim',  v:`E = ${Eint} (campo local)  —  no encerrado`},
+      ] : [
+        {t:'head', v:'Pillbox fuera del condensador'},
+        {t:'key',  v:'Q_enc = 0,  E = 0 exterior'},
+        {t:'res',  v:'Φ_E = 0'},
+        {t:'dim',  v:'El campo exterior del condensador ideal es nulo'},
       ]
     },
     drawSource() {}
@@ -461,12 +501,7 @@ function drawPlanarGaussian(){
   let fluxSign=Math.sign(Qenc)
   const baseColor=fluxSign>0?'0,229,255':fluxSign<0?'255,59,107':'200,200,200'
 
-  if(sc==='capacitor'){
-    const halfD=p.d/2*SCALE
-    centerY=cy-halfD   // top plate canvas y
-  } else {
-    centerY=cy
-  }
+  centerY = cy - p.yoff*SCALE   // physics y+ is up → canvas y- is up
 
   const left=cx-halfPillW, right=cx+halfPillW
   const top=centerY-pillH_px, bot=centerY+pillH_px
@@ -499,16 +534,42 @@ function drawPlanarGaussian(){
 function drawFluxArrowsPlanar(){
   const scen=S[sc]
   const Qenc=scen.getQenc(p.rg)
-  if(Math.abs(Qenc)<1e-20) return
 
   const pillW=Math.min(W*0.38,200)
   const pillH_px=p.rg*SCALE
   const outward=Qenc>0
-  let centerY=sc==='capacitor'?cy-p.d/2*SCALE:cy
+  let centerY=cy-p.yoff*SCALE
   const top=centerY-pillH_px, bot=centerY+pillH_px
 
   const col='rgba(0,229,255,0.85)'
   const left=cx-pillW/2, right=cx+pillW/2
+
+  if(Math.abs(Qenc)<1e-20){
+    // Q_enc = 0: E exists but enters one face and exits the other → net flux = 0.
+    // Show dim arrows only when field is non-zero at the pillbox location.
+    let hasField = false, Edir = Math.PI/2
+    if(sc==='infinite_plane'){
+      hasField = true
+      const aboveCenter=p.yoff>0
+      Edir=(p.sig>=0 ? 1 : -1)*(aboveCenter ? -1 : 1)*Math.PI/2
+    } else if(sc==='capacitor'){
+      const between = Math.abs(p.yoff) < p.d/2
+      // Spanning both plates also gives Q_enc=0 but field cancels — skip arrows there.
+      const crossTop=Math.abs(p.yoff-p.d/2)<p.rg, crossBot=Math.abs(p.yoff+p.d/2)<p.rg
+      if(between && !crossTop && !crossBot){
+        hasField = true
+        Edir = p.sig>=0 ? Math.PI/2 : -Math.PI/2   // field points from + to − (canvas down for σ>0)
+      }
+    }
+    if(hasField){
+      const dim='rgba(150,210,230,0.38)'
+      for(let x=left+20;x<right;x+=35){
+        arrow(x, top+6, Edir, 12, dim, 1.2, 5)
+        arrow(x, bot-6, Edir, 12, dim, 1.2, 5)
+      }
+    }
+    return
+  }
 
   // Arrows on top face (pointing up = outward)
   for(let x=left+20;x<right;x+=35)
@@ -588,76 +649,100 @@ function drawMagneticField(){
 
 // ── E(r) graph ────────────────────────────────────────────────────────────
 function drawEGraph(){
-  const GW=215,GH=145
-  const gx=W-GW-16, gy=H-GH-16
-  const PAD={t:16,r:14,b:30,l:50}
+  const mob=W<641
+  const GW=mob?260:390, GH=mob?175:260
+  const margin=mob?10:18, drawerH=mob?70:18
+  const gx=W-GW-margin, gy=H-GH-drawerH
+  const PAD=mob?{t:14,r:10,b:30,l:44}:{t:20,r:16,b:38,l:58}
   const pw=GW-PAD.l-PAD.r, ph=GH-PAD.t-PAD.b
   const px=gx+PAD.l, py=gy+PAD.t
+  const fsAxis=mob?'9px Inter':'11px Inter'
+  const fsTick=mob?'8px Inter':'10px Inter'
+  const fsTitle=mob?'bold 9px Inter':'bold 11px Inter'
 
-  ctx.fillStyle='rgba(8,11,20,0.92)'
-  ctx.beginPath();ctx.roundRect(gx,gy,GW,GH,8);ctx.fill()
-  ctx.strokeStyle='rgba(255,255,255,0.09)';ctx.lineWidth=1;ctx.stroke()
+  ctx.fillStyle='rgba(8,11,20,0.94)'
+  ctx.beginPath();ctx.roundRect(gx,gy,GW,GH,10);ctx.fill()
+  ctx.strokeStyle='rgba(255,255,255,0.11)';ctx.lineWidth=1;ctx.stroke()
 
   const rMax=5.0, N=300
   const scen=S[sc]
-  // Anchor y-scale to current operating point to avoid singularity domination
-  const E_rg=scen.getE(p.rg)
+  // Anchor y-scale to current operating point to avoid singularity domination.
+  // Use |E|: getE() is signed for negative charges but the graph plots magnitude.
+  const E_rg=Math.abs(scen.getE(p.rg))
   const E_R =(['conducting_sphere','insulating_sphere','spherical_shell'].includes(sc)&&p.R<rMax)
-              ? scen.getE(p.R+0.01) : 0
+              ? Math.abs(scen.getE(p.R+0.01)) : 0
   let eMax=Math.max(isFinite(E_rg)?E_rg:0, isFinite(E_R)?E_R:0)
-  if(eMax===0) eMax=scen.getE(1.0)   // fallback: E at 1 m
+  if(eMax===0) eMax=Math.abs(scen.getE(1.0))   // fallback: |E| at 1 m
   eMax=isFinite(eMax)&&eMax>0 ? eMax*2.2 : 1
   const pts=[]
   for(let i=0;i<=N;i++){
     const r=(i/N)*rMax
-    const e=scen.getE(r)
+    const e=Math.abs(scen.getE(r))
     pts.push({r,e:isFinite(e)?e:0})
   }
   if(eMax===0){
-    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.font='10px Inter';ctx.textAlign='center'
+    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.font=fsAxis;ctx.textAlign='center'
     ctx.fillText('E = 0',gx+GW/2,gy+GH/2);return
   }
 
   // Axes
-  ctx.strokeStyle='rgba(255,255,255,0.22)';ctx.lineWidth=1
+  ctx.strokeStyle='rgba(255,255,255,0.25)';ctx.lineWidth=1
   ctx.beginPath();ctx.moveTo(px,py+ph);ctx.lineTo(px+pw,py+ph);ctx.stroke()
   ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,py+ph);ctx.stroke()
 
   // Axis labels
-  ctx.fillStyle='rgba(255,255,255,0.38)';ctx.font='9px Inter'
-  ctx.textAlign='center';ctx.fillText('r (m)',px+pw/2,gy+GH-4)
-  ctx.save();ctx.translate(gx+12,py+ph/2);ctx.rotate(-Math.PI/2)
-  ctx.fillText('E (N/C)',0,0);ctx.restore()
+  ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font=fsAxis
+  ctx.textAlign='center';ctx.fillText('r (m)',px+pw/2,gy+GH-6)
+  ctx.save();ctx.translate(gx+(mob?10:14),py+ph/2);ctx.rotate(-Math.PI/2)
+  ctx.fillText('|E| (N/C)',0,0);ctx.restore()
 
   // x ticks
   for(let r=0;r<=rMax;r++){
     const xp=px+(r/rMax)*pw
-    ctx.fillStyle='rgba(255,255,255,0.3)';ctx.font='8px Inter';ctx.textAlign='center'
-    ctx.fillText(r,xp,py+ph+10)
+    ctx.fillStyle='rgba(255,255,255,0.35)';ctx.font=fsTick;ctx.textAlign='center'
+    ctx.fillText(r,xp,py+ph+12)
     if(r>0){
       ctx.strokeStyle='rgba(255,255,255,0.07)';ctx.lineWidth=0.5
       ctx.beginPath();ctx.moveTo(xp,py);ctx.lineTo(xp,py+ph);ctx.stroke()
     }
   }
 
+  // y ticks — 4 labeled gridlines showing actual field magnitude
+  const _fmtY=v=>{
+    const a=Math.abs(v)
+    if(a>=1000) return v.toExponential(1).replace('+','')
+    if(a>=10)   return Math.round(v)+''
+    if(a>=1)    return v.toFixed(1)
+    if(a>=0.01) return v.toFixed(2)
+    return v.toExponential(1).replace('+','')
+  }
+  for(let i=1;i<=4;i++){
+    const Eval=(i/4)*eMax
+    const ytp=py+ph*(1-i/4)
+    ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=0.5
+    ctx.beginPath();ctx.moveTo(px,ytp);ctx.lineTo(px+pw,ytp);ctx.stroke()
+    ctx.fillStyle='rgba(255,255,255,0.4)';ctx.font=fsTick;ctx.textAlign='right'
+    ctx.fillText(_fmtY(Eval),px-4,ytp+3.5)
+  }
+
   // R marker
   if(['conducting_sphere','insulating_sphere','spherical_shell'].includes(sc)){
     const Rpx=px+(p.R/rMax)*pw
-    ctx.strokeStyle='rgba(255,202,40,0.65)';ctx.lineWidth=1.3;ctx.setLineDash([3,3])
+    ctx.strokeStyle='rgba(255,202,40,0.7)';ctx.lineWidth=1.5;ctx.setLineDash([4,3])
     ctx.beginPath();ctx.moveTo(Rpx,py);ctx.lineTo(Rpx,py+ph);ctx.stroke()
     ctx.setLineDash([])
-    ctx.fillStyle='rgba(255,202,40,0.7)';ctx.font='bold 8px Inter';ctx.textAlign='center'
+    ctx.fillStyle='rgba(255,202,40,0.8)';ctx.font=fsTick;ctx.textAlign='center'
     ctx.fillText('R',Rpx,py-4)
   }
 
   // r_gauss marker
   const rgPx=px+Math.min(p.rg/rMax,1)*pw
-  ctx.strokeStyle='rgba(0,229,255,0.5)';ctx.lineWidth=1
+  ctx.strokeStyle='rgba(0,229,255,0.6)';ctx.lineWidth=1.5
   ctx.beginPath();ctx.moveTo(rgPx,py);ctx.lineTo(rgPx,py+ph);ctx.stroke()
 
   // E(r) curve — break at internal-zero regions
   const hasZeroInside=['conducting_sphere','spherical_shell'].includes(sc)
-  ctx.beginPath();ctx.strokeStyle='#7ec8e3';ctx.lineWidth=2
+  ctx.beginPath();ctx.strokeStyle='#7ec8e3';ctx.lineWidth=2.5
   let first=true
   for(const {r,e} of pts){
     if(e>eMax||!isFinite(e)){first=true;continue}
@@ -668,25 +753,25 @@ function drawEGraph(){
 
   // For conductors/shells: flat zero inside
   if(hasZeroInside){
-    ctx.strokeStyle='rgba(68,138,255,0.6)';ctx.lineWidth=2
+    ctx.strokeStyle='rgba(68,138,255,0.7)';ctx.lineWidth=2.5
     ctx.beginPath()
     ctx.moveTo(px,py+ph)
     ctx.lineTo(px+Math.min(p.R/rMax,1)*pw,py+ph)
     ctx.stroke()
   }
 
-  // Dot at (rg, E)
-  const Ec=scen.getE(p.rg)
+  // Dot at (rg, |E|)
+  const Ec=Math.abs(scen.getE(p.rg))
   if(isFinite(Ec)&&Ec<=eMax&&p.rg<=rMax){
     const dx=px+(p.rg/rMax)*pw, dy=py+ph-(Ec/eMax)*ph
-    ctx.beginPath();ctx.arc(dx,dy,4,0,TAU)
+    ctx.beginPath();ctx.arc(dx,dy,5,0,TAU)
     ctx.fillStyle='#00e5ff';ctx.fill()
-    ctx.strokeStyle='rgba(0,0,0,0.5)';ctx.lineWidth=1;ctx.stroke()
+    ctx.strokeStyle='rgba(0,0,0,0.6)';ctx.lineWidth=1.5;ctx.stroke()
   }
 
   // Graph title
-  ctx.fillStyle='rgba(255,255,255,0.4)';ctx.font='bold 9px Inter';ctx.textAlign='left'
-  ctx.fillText('E vs r',gx+PAD.l,gy+9)
+  ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font=fsTitle;ctx.textAlign='left'
+  ctx.fillText('E vs r',gx+PAD.l,gy+(mob?10:13))
 }
 
 // ── UI update ─────────────────────────────────────────────────────────────
@@ -733,13 +818,13 @@ const PARAM_MAP = {
   insulating_sphere: ['Q','R','rg'],
   spherical_shell:   ['Q','R','rg'],
   infinite_line:     ['lam','rg'],
-  infinite_plane:    ['sig','rg'],
-  capacitor:         ['sig','d','rg'],
+  infinite_plane:    ['sig','rg','yoff'],
+  capacitor:         ['sig','d','rg','yoff'],
   magnetic:          ['rg'],
 }
 function syncParamVisibility(){
   const show=PARAM_MAP[sc]
-  const all=['Q','R','rg','lam','sig','d']
+  const all=['Q','R','rg','lam','sig','d','yoff']
   all.forEach(k=>{
     const el=document.getElementById(`pg-${k}`)
     if(el) el.style.display=show.includes(k)?'':'none'
@@ -785,15 +870,20 @@ function render(){
 
 // ── Planar E graph (E vs y) ───────────────────────────────────────────────
 function drawEGraphPlanar(){
-  const GW=215,GH=145
-  const gx=W-GW-16, gy=H-GH-16
-  const PAD={t:16,r:14,b:30,l:50}
+  const mob=W<641
+  const GW=mob?260:390, GH=mob?175:260
+  const margin=mob?10:18, drawerH=mob?70:18
+  const gx=W-GW-margin, gy=H-GH-drawerH
+  const PAD=mob?{t:14,r:10,b:30,l:44}:{t:20,r:16,b:38,l:58}
   const pw=GW-PAD.l-PAD.r, ph=GH-PAD.t-PAD.b
   const px=gx+PAD.l, py=gy+PAD.t
+  const fsAxis=mob?'9px Inter':'11px Inter'
+  const fsTick=mob?'8px Inter':'10px Inter'
+  const fsTitle=mob?'bold 9px Inter':'bold 11px Inter'
 
-  ctx.fillStyle='rgba(8,11,20,0.92)'
-  ctx.beginPath();ctx.roundRect(gx,gy,GW,GH,8);ctx.fill()
-  ctx.strokeStyle='rgba(255,255,255,0.09)';ctx.lineWidth=1;ctx.stroke()
+  ctx.fillStyle='rgba(8,11,20,0.94)'
+  ctx.beginPath();ctx.roundRect(gx,gy,GW,GH,10);ctx.fill()
+  ctx.strokeStyle='rgba(255,255,255,0.11)';ctx.lineWidth=1;ctx.stroke()
 
   const yRange=5.0   // meters, symmetric
   const N=300, scen=S[sc]
@@ -808,7 +898,7 @@ function drawEGraphPlanar(){
   eMax=Math.max(eMax*1.15, 1)
 
   // Axes
-  ctx.strokeStyle='rgba(255,255,255,0.22)';ctx.lineWidth=1
+  ctx.strokeStyle='rgba(255,255,255,0.25)';ctx.lineWidth=1
   ctx.beginPath();ctx.moveTo(px,py+ph);ctx.lineTo(px+pw,py+ph);ctx.stroke()
   ctx.beginPath();ctx.moveTo(px,py);ctx.lineTo(px,py+ph);ctx.stroke()
   // center horizontal axis (y=0)
@@ -817,23 +907,41 @@ function drawEGraphPlanar(){
   ctx.beginPath();ctx.moveTo(px,yCenterPx);ctx.lineTo(px+pw,yCenterPx);ctx.stroke()
 
   // Axis labels
-  ctx.fillStyle='rgba(255,255,255,0.38)';ctx.font='9px Inter'
-  ctx.textAlign='center';ctx.fillText('y (m)',px+pw/2,gy+GH-4)
-  ctx.save();ctx.translate(gx+12,py+ph/2);ctx.rotate(-Math.PI/2)
-  ctx.fillText('E (N/C)',0,0);ctx.restore()
+  ctx.fillStyle='rgba(255,255,255,0.45)';ctx.font=fsAxis
+  ctx.textAlign='center';ctx.fillText('y (m)',px+pw/2,gy+GH-6)
+  ctx.save();ctx.translate(gx+(mob?10:14),py+ph/2);ctx.rotate(-Math.PI/2)
+  ctx.fillText('|E| (N/C)',0,0);ctx.restore()
+
+  // y ticks
+  const _fmtY=v=>{
+    const a=Math.abs(v)
+    if(a>=1000) return v.toExponential(1).replace('+','')
+    if(a>=10)   return Math.round(v)+''
+    if(a>=1)    return v.toFixed(1)
+    if(a>=0.01) return v.toFixed(2)
+    return v.toExponential(1).replace('+','')
+  }
+  for(let i=1;i<=4;i++){
+    const Eval=(i/4)*eMax
+    const ytp=py+ph*(1-i/4)
+    ctx.strokeStyle='rgba(255,255,255,0.08)';ctx.lineWidth=0.5
+    ctx.beginPath();ctx.moveTo(px,ytp);ctx.lineTo(px+pw,ytp);ctx.stroke()
+    ctx.fillStyle='rgba(255,255,255,0.4)';ctx.font=fsTick;ctx.textAlign='right'
+    ctx.fillText(_fmtY(Eval),px-4,ytp+3.5)
+  }
 
   // Plate markers for capacitor
   if(sc==='capacitor'){
     for(const yPlate of[-p.d/2, p.d/2]){
       const xp=px+(yPlate+yRange)/(2*yRange)*pw
-      ctx.strokeStyle='rgba(255,202,40,0.6)';ctx.lineWidth=1.3;ctx.setLineDash([3,3])
+      ctx.strokeStyle='rgba(255,202,40,0.7)';ctx.lineWidth=1.5;ctx.setLineDash([4,3])
       ctx.beginPath();ctx.moveTo(xp,py);ctx.lineTo(xp,py+ph);ctx.stroke()
       ctx.setLineDash([])
     }
   }
 
   // E(y) curve
-  ctx.beginPath();ctx.strokeStyle='#7ec8e3';ctx.lineWidth=2
+  ctx.beginPath();ctx.strokeStyle='#7ec8e3';ctx.lineWidth=2.5
   let first=true
   for(const {y,e} of pts){
     const xp=px+(y+yRange)/(2*yRange)*pw
@@ -842,15 +950,21 @@ function drawEGraphPlanar(){
   }
   ctx.stroke()
 
-  // Pillbox position marker
-  let pillY=0
-  if(sc==='capacitor') pillY=p.d/2  // pillbox crosses top plate at d/2
-  const pillXpx=px+(pillY+yRange)/(2*yRange)*pw
-  ctx.strokeStyle='rgba(0,229,255,0.5)';ctx.lineWidth=1
-  ctx.beginPath();ctx.moveTo(pillXpx,py);ctx.lineTo(pillXpx,py+ph);ctx.stroke()
+  // Pillbox extent: shaded band from (center-rg) to (center+rg) on x-axis
+  const pillCenter = p.yoff
+  const pL = Math.max(-yRange, pillCenter - p.rg)
+  const pR = Math.min( yRange, pillCenter + p.rg)
+  const xL = px+(pL+yRange)/(2*yRange)*pw
+  const xR = px+(pR+yRange)/(2*yRange)*pw
+  ctx.fillStyle='rgba(0,229,255,0.07)'
+  ctx.fillRect(xL, py, xR-xL, ph)
+  ctx.strokeStyle='rgba(0,229,255,0.55)';ctx.lineWidth=1.2;ctx.setLineDash([4,3])
+  ctx.beginPath();ctx.moveTo(xL,py);ctx.lineTo(xL,py+ph);ctx.stroke()
+  ctx.beginPath();ctx.moveTo(xR,py);ctx.lineTo(xR,py+ph);ctx.stroke()
+  ctx.setLineDash([])
 
-  ctx.fillStyle='rgba(255,255,255,0.4)';ctx.font='bold 9px Inter';ctx.textAlign='left'
-  ctx.fillText('E vs y',gx+PAD.l,gy+9)
+  ctx.fillStyle='rgba(255,255,255,0.5)';ctx.font=fsTitle;ctx.textAlign='left'
+  ctx.fillText('E vs y',gx+PAD.l,gy+(mob?10:13))
 }
 
 // ── Resize ────────────────────────────────────────────────────────────────
@@ -880,7 +994,7 @@ function onDown(e){
       e.preventDefault()
     }
   } else if(sym==='planar'){
-    let centerY=sc==='capacitor'?cy-p.d/2*SCALE:cy
+    let centerY=cy-p.yoff*SCALE
     const pillTop=centerY-p.rg*SCALE
     const pillBot=centerY+p.rg*SCALE
     if(Math.abs(my-pillTop)<14||Math.abs(my-pillBot)<14){
@@ -901,7 +1015,7 @@ function onMove(e){
     p.rg=Math.max(0.1,Math.min(5.0,dist/SCALE))
     setSlider('rg',p.rg)
   } else if(sym==='planar'){
-    let centerY=sc==='capacitor'?cy-p.d/2*SCALE:cy
+    let centerY=cy-p.yoff*SCALE
     p.rg=Math.max(0.1,Math.min(5.0,Math.abs(my-centerY)/SCALE))
     setSlider('rg',p.rg)
   }
@@ -926,6 +1040,7 @@ function updateSliderLabel(key,val){
     lam: v=>`${(+v).toFixed(1)} nC/m`,
     sig: v=>`${(+v).toFixed(1)} nC/m²`,
     d:   v=>`${(+v).toFixed(2)} m`,
+    yoff:v=>`${(+v >= 0 ? '+' : '')}${(+v).toFixed(2)} m`,
   }
   el.textContent=(fmts[key]||String)(val)
 }
@@ -946,7 +1061,7 @@ function initEvents(){
     render()
   })
 
-  ;['Q','R','rg','lam','sig','d'].forEach(key=>{
+  ;['Q','R','rg','lam','sig','d','yoff'].forEach(key=>{
     const el=document.getElementById(`ps-${key}`)
     if(!el) return
     el.addEventListener('input',()=>{
@@ -963,12 +1078,18 @@ function initEvents(){
 
   window.addEventListener('resize',resize)
 
-  // Mobile: tap top handle to open panel
-  document.getElementById('panel').addEventListener('click',function(e){
-    if(window.innerWidth<=640){
-      const r=this.getBoundingClientRect()
-      if(e.clientY-r.top<20) this.classList.toggle('open')
-    }
+  // Mobile: tap handle pill to toggle panel
+  const mobileHandle=document.getElementById('mobileHandle')
+  if(mobileHandle){
+    mobileHandle.addEventListener('click',()=>{
+      document.getElementById('panel').classList.toggle('open')
+    })
+  }
+
+  // Mobile: close panel when scenario changes (keeps canvas visible)
+  document.getElementById('scenarioSelect').addEventListener('change',()=>{
+    if(window.innerWidth<=640)
+      document.getElementById('panel').classList.remove('open')
   })
 }
 
@@ -1224,7 +1345,7 @@ render = function(){
 // ── Init ──────────────────────────────────────────────────────────────────
 function init(){
   syncParamVisibility()
-  Object.entries({Q:p.Q,R:p.R,rg:p.rg,lam:p.lam,sig:p.sig,d:p.d})
+  Object.entries({Q:p.Q,R:p.R,rg:p.rg,lam:p.lam,sig:p.sig,d:p.d,yoff:p.yoff})
     .forEach(([k,v])=>updateSliderLabel(k,v))
   initEvents()
   initLessons()
