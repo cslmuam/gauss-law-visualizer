@@ -13,15 +13,20 @@ Constantes físicas:
   EPS0 = 8.854187817e-12 F/m
   K    = 8.987551787e9 N·m²/C²
 
-Escenarios del visualizador (8 en total):
-  point_charge       — superficie esférica, params: Q (nC), rg (m)
-  conducting_sphere  — params: Q, R, rg
-  insulating_sphere  — params: Q, R, rg  (E∝r interior, E∝1/r² exterior)
-  spherical_shell    — params: Q, R, rg  (E=0 interior, E=kQ/r² exterior)
-  infinite_line      — simetría cilíndrica, params: lam (nC/m), rg
-  infinite_plane     — pillbox, params: sig (nC/m²), rg (semialtura)
-  capacitor          — params: sig, d (separación), rg
-  magnetic           — ∮B·dA=0, params: rg únicamente
+Escenarios del visualizador (13 en total):
+  point_charge          — superficie esférica, params: Q (nC), rg (m)
+  conducting_sphere     — params: Q, R, rg
+  insulating_sphere     — params: Q, R, rg  (E∝r interior, E∝1/r² exterior)
+  spherical_shell       — params: Q, R, rg  (E=0 interior, E=kQ/r² exterior)
+  infinite_line         — simetría cilíndrica, params: lam (nC/m), rg
+  infinite_plane        — pillbox, params: sig (nC/m²), rg, yoff (posición pillbox)
+  capacitor             — params: sig, d (separación), rg, yoff
+  magnetic              — ∮B·dA=0, params: rg únicamente
+  thick_shell           — esfera aislante + casco conductor, params: Q, Q2, R, b, c, rg
+  insulating_cylinder   — cilindro sólido ρ uniforme, params: lam, R, rg
+  coaxial_cable         — cable coaxial, params: lam, R, b, rg
+  spherical_cap         — condensador esférico, params: Q, Q2, R, b, rg
+  nonuniform_sphere     — esfera aislante ρ∝r, params: Q, R, rg
 
 Requisitos:
   pip install anthropic
@@ -89,6 +94,36 @@ Fórmulas por escenario (r = rg, la semialtura o radio de la superficie de Gauss
 
   magnetic:
       E = 0, Qenc = 0, Flux = 0  (siempre; ∮B·dA = 0)
+
+  thick_shell (esfera aislante radio a=R, casco conductor radios b–c, cargas Q1=Q y Q2):
+      r < a:   E = K*Q*1e-9*r/a³,   Qenc = Q*(r/a)³ nC
+      a<r<b:   E = K*Q*1e-9/r²,     Qenc = Q nC
+      b≤r≤c:   E = 0,                Qenc = 0  (blindaje: cara interna −Q1)
+      r > c:   E = K*(Q+Q2)*1e-9/r², Qenc = (Q+Q2) nC
+      Flux = Qenc*1e-9 / EPS0
+
+  insulating_cylinder (cilindro sólido ρ uniforme, lam = carga/longitud nC/m, radio R):
+      r ≤ R:   E = |lam|*1e-9*r / (2*π*EPS0*R²)   ∝ r
+      r > R:   E = |lam|*1e-9 / (2*π*EPS0*r)       ∝ 1/r
+      Qenc_per_m = lam*(r/R)² nC/m   si r≤R;   lam nC/m   si r>R
+      Flux_per_m = Qenc_per_m*1e-9 / EPS0
+
+  coaxial_cable (conductor central radio R carga +lam, cubierta radio b carga −lam):
+      r ≤ R:   E = 0  (conductor)
+      R<r<b:   E = |lam|*1e-9 / (2*π*EPS0*r)   ∝ 1/r;  Qenc_per_m = lam nC/m
+      r ≥ b:   E = 0  (total = 0);  Qenc_per_m = 0
+      Flux_per_m = Qenc_per_m*1e-9 / EPS0
+
+  spherical_cap (esfera conductora radio a=R carga Q1=Q, cáscara radio b carga Q2):
+      r < a:   E = 0  (conductor)
+      a<r<b:   E = K*Q*1e-9/r²,       Qenc = Q nC
+      r ≥ b:   E = K*(Q+Q2)*1e-9/r²,  Qenc = (Q+Q2) nC
+      Flux = Qenc*1e-9 / EPS0
+
+  nonuniform_sphere (ρ(r) = ρ₀·r/R, carga total Q):
+      r ≤ R:   E = K*Q*1e-9*r²/R⁴   ∝ r²;  Qenc = Q*(r/R)⁴ nC
+      r > R:   E = K*Q*1e-9/r²;      Qenc = Q nC
+      Flux = Qenc*1e-9 / EPS0
 """
 
 # ---------------------------------------------------------------------------
@@ -137,7 +172,9 @@ DEFINE_GAUSS_CURRICULUM_TOOL = {
                                 "Descripción técnica del escenario y parámetros sugeridos "
                                 "para el PhysicsAgent. Incluye el nombre del escenario del "
                                 "visualizador (uno de: point_charge, conducting_sphere, "
-                                "insulating_sphere, spherical_shell, infinite_line, "
+                                "insulating_sphere, spherical_shell, thick_shell, "
+                                "spherical_cap, nonuniform_sphere, infinite_line, "
+                                "insulating_cylinder, coaxial_cable, "
                                 "infinite_plane, capacitor, magnetic)."
                             ),
                         },
@@ -165,7 +202,12 @@ DEFINE_GAUSS_SCENARIO_TOOL = {
                     "conducting_sphere",
                     "insulating_sphere",
                     "spherical_shell",
+                    "thick_shell",
+                    "spherical_cap",
+                    "nonuniform_sphere",
                     "infinite_line",
+                    "insulating_cylinder",
+                    "coaxial_cable",
                     "infinite_plane",
                     "capacitor",
                     "magnetic",
@@ -176,17 +218,24 @@ DEFINE_GAUSS_SCENARIO_TOOL = {
                 "type": "object",
                 "description": (
                     "Parámetros del escenario. Incluye sólo los relevantes: "
-                    "Q (nC, escenarios esféricos), R (m, radio fuente), rg (m, radio/semialtura Gauss), "
-                    "lam (nC/m, línea infinita), sig (nC/m², plano/capacitor), d (m, separación capacitor). "
-                    "rg debe estar en [0.1, 5.0]."
+                    "Q (nC), R (m, radio a de esfera/cilindro), rg (m, radio gaussiano), "
+                    "lam (nC/m), sig (nC/m²), d (m, separación capacitor), "
+                    "Q2 (nC, carga secundaria: casco/cubierta exterior), "
+                    "b (m, radio interior del casco/cubierta), c (m, radio exterior del casco thick_shell), "
+                    "yoff (m, desplazamiento vertical pillbox, solo infinite_plane/capacitor). "
+                    "rg debe estar en [0.1, 5.0]. Garantiza a < b < c para thick_shell."
                 ),
                 "properties": {
-                    "Q":   {"type": "number", "description": "Carga total en nC"},
-                    "R":   {"type": "number", "description": "Radio de la distribución fuente en m", "minimum": 0.1},
+                    "Q":   {"type": "number", "description": "Carga Q₁ en nC"},
+                    "Q2":  {"type": "number", "description": "Carga Q₂ (casco/cubierta) en nC (thick_shell, spherical_cap, coaxial_cable implícito)"},
+                    "R":   {"type": "number", "description": "Radio de la distribución fuente / radio a en m", "minimum": 0.1},
+                    "b":   {"type": "number", "description": "Radio interior del casco/cubierta en m (thick_shell, coaxial_cable, spherical_cap)"},
+                    "c":   {"type": "number", "description": "Radio exterior del casco conductor en m (solo thick_shell)"},
                     "rg":  {"type": "number", "description": "Radio/semialtura inicial de la sup. de Gauss en m", "minimum": 0.1, "maximum": 5.0},
                     "lam": {"type": "number", "description": "Densidad lineal de carga en nC/m"},
                     "sig": {"type": "number", "description": "Densidad superficial de carga en nC/m²"},
                     "d":   {"type": "number", "description": "Separación entre placas del capacitor en m", "minimum": 0.1},
+                    "yoff":{"type": "number", "description": "Desplazamiento vertical del pillbox en m (infinite_plane, capacitor)"},
                 },
                 "additionalProperties": False,
             },
@@ -215,11 +264,15 @@ DEFINE_GAUSS_SCENARIO_TOOL = {
                         "description": "Subset de params con los valores objetivo del reto.",
                         "properties": {
                             "Q":   {"type": "number"},
+                            "Q2":  {"type": "number"},
                             "R":   {"type": "number"},
+                            "b":   {"type": "number"},
+                            "c":   {"type": "number"},
                             "rg":  {"type": "number", "minimum": 0.1, "maximum": 5.0},
                             "lam": {"type": "number"},
                             "sig": {"type": "number"},
                             "d":   {"type": "number"},
+                            "yoff":{"type": "number"},
                         },
                         "additionalProperties": False,
                     },
@@ -423,28 +476,37 @@ Eres un diseñador curricular experto en electromagnetismo para ingeniería elé
 la Ley de Gauss (forma integral), donde cada lección construye sobre la anterior con rigor \
 matemático creciente.
 
-El visualizador permite seleccionar 8 escenarios con simetrías exactas que hacen aplicable \
+El visualizador permite seleccionar 13 escenarios con simetrías exactas que hacen aplicable \
 ∮E·dA = Q_enc/ε₀:
-  1. point_charge       — simetría esférica, superficie gaussiana esférica
-  2. conducting_sphere  — conductor sólido, E=0 interior
-  3. insulating_sphere  — aislante con carga volumétrica uniforme
-  4. spherical_shell    — cascarón esférico, E=0 interior
-  5. infinite_line      — simetría cilíndrica, superficie cilíndrica
-  6. infinite_plane     — simetría planar, superficie "pillbox"
-  7. capacitor          — campo confinado entre placas paralelas
-  8. magnetic           — ley de Gauss magnética: ∮B·dA = 0
+  Simetría esférica:
+    1. point_charge        — carga puntual, E=kQ/r²
+    2. conducting_sphere   — conductor sólido, E=0 interior
+    3. insulating_sphere   — aislante uniforme, E∝r interior
+    4. spherical_shell     — cascarón esférico, E=0 interior
+    5. thick_shell         — esfera + casco conductor, 4 regiones
+    6. spherical_cap       — condensador esférico (dos esferas concéntricas)
+    7. nonuniform_sphere   — ρ∝r, E∝r² interior
+  Simetría cilíndrica:
+    8. infinite_line       — línea de carga, E∝1/r
+    9. insulating_cylinder — cilindro sólido ρ uniforme, E∝r interior
+   10. coaxial_cable       — cable coaxial, apantallamiento
+  Simetría planar:
+   11. infinite_plane      — plano infinito, pillbox desplazable
+   12. capacitor           — condensador de placas paralelas, pillbox desplazable
+  Magnético:
+   13. magnetic            — ∮B·dA = 0
 
 Para nivel ingeniería la secuencia debe:
 (1) Progresar desde la simetría más simple (esférica, carga puntual) hasta la más compleja \
-    (planar + capacitor) y el caso magnético como contraste conceptual.
-(2) Incluir escenarios donde el campo es discontinuo en la interfaz (conducting_sphere, \
-    spherical_shell, capacitor) y escenarios donde varía continuamente (insulating_sphere).
+    (multicapa, no uniforme) y el caso magnético como contraste conceptual.
+(2) Incluir escenarios donde el campo es discontinuo en la interfaz y escenarios donde varía \
+    continuamente (insulating_sphere, insulating_cylinder, nonuniform_sphere).
 (3) El reto final (topic='reto_gauss') debe pedir al estudiante ajustar parámetros para \
     alcanzar un flujo o campo objetivo — problema de diseño inverso.
 (4) Cada lección debe ser resoluble analíticamente con ∮E·dA = Q_enc/ε₀ y las simetrías \
     correspondientes; ninguna debe requerir integración numérica.
-(5) Distribuir los 8 escenarios del visualizador a lo largo de la secuencia; no repetir \
-    el mismo escenario más de una vez salvo que el número de lecciones sea mayor que 8.
+(5) Distribuir los 13 escenarios del visualizador a lo largo de la secuencia; no repetir \
+    el mismo escenario más de una vez salvo que el número de lecciones sea mayor que 13.
 
 {PHYSICS_REFERENCE}
 """
@@ -452,15 +514,20 @@ Para nivel ingeniería la secuencia debe:
 PHYSICS_SYSTEM = f"""\
 Eres un físico teórico especializado en electrostática y electromagnetismo clásico. \
 Tu tarea es traducir el plan curricular en parámetros concretos del visualizador de \
-la Ley de Gauss y calcular los readouts del reto con precisión numérica.
+la Ley de Gauss (13 escenarios) y calcular los readouts del reto con precisión numérica.
 
 Restricciones de parámetros:
-  - Q   : carga total en nC; puede ser positiva o negativa; magnitud típica 1–10 nC
-  - R   : radio de la distribución fuente en m; rango sugerido [0.5, 3.0]
+  - Q, Q2: cargas en nC; pueden ser positivas o negativas; magnitud típica 1–10 nC
+  - R   : radio a de la esfera/cilindro fuente en m; rango sugerido [0.3, 2.0]
+  - b   : radio interior del casco/cubierta en m; debe ser > R
+  - c   : radio exterior del casco (solo thick_shell) en m; debe ser > b
   - rg  : radio/semialtura de la superficie de Gauss en m; OBLIGATORIO en [0.1, 5.0]
   - lam : densidad lineal en nC/m; magnitud típica 0.5–5.0
   - sig : densidad superficial en nC/m²; magnitud típica 0.5–5.0
   - d   : separación de placas en m; rango sugerido [0.5, 3.0]
+  - yoff: desplazamiento vertical del pillbox en m; rango [−4, 4] (infinite_plane, capacitor)
+
+Para thick_shell garantiza a=R < b < c. Para coaxial_cable garantiza R < b.
 
 Para el reto (challenge_target):
   - El rg objetivo debe ser DIFERENTE al rg inicial (mínimo 30% de diferencia).

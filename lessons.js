@@ -197,5 +197,125 @@ window.GAUSS_LESSONS = [
       "target_readout": { "Qenc_nC": 0.0, "flux_Nm2C": 0.0, "E_NC": 0.0 },
       "tolerance": 0.99
     }
+  },
+  {
+    "id": "G09",
+    "title": "Cascarón conductor de ancho finito: cuatro regiones de campo",
+    "topic": "simetria_esferica",
+    "difficulty": 4,
+    "scenario": "thick_shell",
+    "params": { "Q": 3.0, "Q2": -1.0, "R": 0.8, "b": 1.5, "c": 2.5, "rg": 1.1 },
+    "objective": "Aplicar la Ley de Gauss a un sistema de dos objetos concéntricos con cuatro regiones distintas y verificar el blindaje electrostático en el interior del conductor.",
+    "theory": "El sistema consiste en una esfera aislante (radio a = R, carga Q₁ uniforme) dentro de un cascarón conductor esférico (radios b–c, carga total Q₂). Aplicando ∮E·dA = Q_enc/ε₀ a cada región: (1) r < a: E = kQ₁r/a³ ∝ r; (2) a < r < b: E = kQ₁/r² (solo la esfera interior contribuye); (3) b < r < c: E = 0, pues Q_enc = Q₁ + Q₁_inducida_interior = Q₁ − Q₁ = 0 (la cara interna del conductor adquiere −Q₁ por inducción); (4) r > c: E = k(Q₁+Q₂)/r², donde Q₁+Q₂ es la carga total del sistema. La gráfica E(r) exhibe una discontinuidad en r = a, un tramo nulo en b–c y un segundo pico en r = c si Q₁+Q₂ ≠ Q₁.",
+    "hints": [],
+    "questions": [
+      "Con Q₁ = 3 nC, a = 0.8 m, calcula E en r = 0.5 m (interior esfera), r = 1.1 m (vacío), r = 1.9 m (conductor) y r = 3.5 m (exterior). Verifica cada valor con el visualizador.",
+      "Demuestra que la cara interna del cascarón adquiere carga −Q₁ y la cara externa tiene carga Q₁+Q₂, usando el argumento gaussiano sobre el campo nulo dentro del conductor.",
+      "¿Cuánto vale el flujo total Φ = Q_enc/ε₀ para una superficie de Gauss en cada una de las cuatro regiones? ¿Cuál es el único dominio donde Q_enc cambia al variar rg?",
+      "Si Q₂ = −Q₁ (cascarón que neutraliza la esfera), ¿cómo queda E(r) para r > c? Calcula numéricamente con Q₁ = 3 nC, Q₂ = −3 nC y verifica cambiando Q2 en el simulador."
+    ],
+    "challenge": {
+      "description": "Con la configuración actual (Q₁ = 3 nC, Q₂ = −1 nC), calcula analíticamente el campo eléctrico que se mediría en el exterior del sistema, a r = 3.5 m. Luego arrastra la superficie gaussiana hasta esa posición y confirma que tu cálculo coincide con el visualizador. El objetivo es verificar que E exterior depende únicamente de la carga total Q₁+Q₂.",
+      "target_params": { "Q": 3.0, "Q2": -1.0, "R": 0.8, "b": 1.5, "c": 2.5, "rg": 3.5 },
+      "target_rg": 3.5,
+      "target_readout": { "Qenc_nC": 2.0, "flux_Nm2C": 225.9, "E_NC": 1.47 },
+      "tolerance": 0.08
+    }
+  },
+  {
+    "id": "G10",
+    "title": "Cilindro sólido aislante: campo lineal en el interior (E ∝ r)",
+    "topic": "simetria_cilindrica",
+    "difficulty": 3,
+    "scenario": "insulating_cylinder",
+    "params": { "lam": 2.0, "R": 1.5, "rg": 0.8 },
+    "objective": "Derivar mediante la Ley de Gauss el campo eléctrico dentro y fuera de un cilindro sólido cargado uniformemente, y verificar el contraste entre el crecimiento lineal interior y la caída 1/r exterior.",
+    "theory": "Un cilindro infinito de radio R con densidad volumétrica uniforme ρ = λ/(πR²) (siendo λ la carga por unidad de longitud) tiene simetría cilíndrica. La superficie de Gauss natural es un cilindro coaxial de radio r y longitud L. Para r ≤ R: ∮E·dA = E·2πrL = Q_enc/ε₀ = ρπr²L/ε₀ = λ(r/R)²L/ε₀, de donde E = λr/(2πε₀R²) ∝ r — el campo crece linealmente como en el interior de la esfera aislante pero con simetría cilíndrica. Para r > R: E·2πrL = λL/ε₀, de donde E = λ/(2πε₀r) ∝ 1/r, idéntico a la línea de carga. La distinción clave respecto al cilindro conductor (E=0 interior) reside en que aquí la carga reside en todo el volumen, no en la superficie.",
+    "hints": [],
+    "questions": [
+      "Con λ = 2 nC/m y R = 1.5 m, calcula E en r = 0.8 m (interior) y r = 2.5 m (exterior). Verifica ambos valores con la lectura del visualizador al arrastrar la superficie gaussiana.",
+      "Demuestra que E es continuo en r = R: evalúa la expresión interior E = λr/(2πε₀R²) en r = R y la exterior E = λ/(2πε₀r) en r = R; compara con E de la línea de carga infinita de densidad λ.",
+      "Calcula la razón E(r)/E(R) para r = 0.4R, 0.7R y 1.5R, tanto analíticamente como leyendo el visualizador. ¿Qué ley de escala tiene el campo en la región interior?",
+      "Si duplicas R manteniendo λ fija, ¿cómo cambia E en r = 0.8 m (que ahora podría quedar dentro o fuera según el nuevo R)? Argumenta antes de verificar con el slider."
+    ],
+    "challenge": {
+      "description": "La superficie gaussiana está actualmente en r = 0.8 m, en el interior del cilindro. Determina analíticamente a qué radio exterior r* debería moverse la superficie para que el campo eléctrico medido sea exactamente el mismo valor que el leído ahora en r = 0.8 m. (Pista: iguala las expresiones de E interior y exterior y despeja r*.) Arrastra la superficie hasta ese radio y verifica que el campo coincide.",
+      "target_params": { "lam": 2.0, "R": 1.5, "rg": 2.5 },
+      "target_rg": 2.5,
+      "target_readout": { "Qenc_nC": 2.0, "flux_Nm2C": 225.9, "E_NC": 14.36 },
+      "tolerance": 0.08
+    }
+  },
+  {
+    "id": "G11",
+    "title": "Cable coaxial: apantallamiento electrostático perfecto",
+    "topic": "simetria_cilindrica",
+    "difficulty": 3,
+    "scenario": "coaxial_cable",
+    "params": { "lam": 2.0, "R": 0.5, "b": 2.5, "rg": 1.2 },
+    "objective": "Demostrar con la Ley de Gauss que un cable coaxial ideal (conductor central +λ y cubierta −λ) produce campo nulo en el exterior, y calcular el campo en la región activa entre conductores.",
+    "theory": "El cable coaxial consta de un conductor central (radio R, carga +λ por unidad de longitud) y una cubierta cilíndrica conductora (radio b, carga −λ). Para r < R: E = 0 (conductor). Para R < r < b: Q_enc/L = +λ, luego E·2πrL = λL/ε₀ → E = λ/(2πε₀r) ∝ 1/r; el campo es idéntico al de una línea de carga aislada. Para r > b: Q_enc/L = +λ + (−λ) = 0 → E = 0. Este blindaje perfecto — campo nulo fuera — es la propiedad que hace al cable coaxial imprescindible en telecomunicaciones (TV, radiofrecuencia, instrumentación): las señales eléctricas se propagan en la región activa sin radiar ni recibir interferencia electromagnética del exterior.",
+    "hints": [],
+    "questions": [
+      "Con λ = 2 nC/m, R = 0.5 m y b = 2.5 m, calcula E en r = 1.2 m (entre conductores). Verifica con el visualizador. Luego mueve la superficie a r = 3.0 m y confirma E = 0.",
+      "¿A qué radio r* entre los conductores el campo es exactamente la mitad del valor en r = 1.2 m? Calcula analíticamente usando E ∝ 1/r y verifica con el slider.",
+      "Calcula el flujo Φ/L = E·2πrL para r = 0.8 m, 1.5 m y 3.0 m. ¿Cuándo cambia Q_enc/L al variar r? Relaciona con las tres regiones del cable.",
+      "Si la cubierta exterior tuviera carga −2λ en lugar de −λ, ¿cuánto valdría E para r > b? ¿Y el flujo total? Argumenta con la Ley de Gauss antes de modificar los parámetros."
+    ],
+    "challenge": {
+      "description": "Actualmente la superficie gaussiana está en r = 1.2 m y mide un campo E₀. Calcula analíticamente en qué radio r* (entre los dos conductores) el campo es exactamente la mitad de E₀. Arrastra la superficie hasta r* y verifica que el visualizador confirma tu predicción. El objetivo es aplicar la relación E ∝ 1/r para encontrar la posición sin tanteo.",
+      "target_params": { "lam": 2.0, "R": 0.5, "b": 2.5, "rg": 2.4 },
+      "target_rg": 2.4,
+      "target_readout": { "Qenc_nC": 2.0, "flux_Nm2C": 225.9, "E_NC": 15.0 },
+      "tolerance": 0.08
+    }
+  },
+  {
+    "id": "G12",
+    "title": "Condensador esférico: campo confinado y capacidad 4πε₀ab/(b−a)",
+    "topic": "simetria_esferica",
+    "difficulty": 4,
+    "scenario": "spherical_cap",
+    "params": { "Q": 3.0, "Q2": -3.0, "R": 0.8, "b": 2.5, "rg": 1.5 },
+    "objective": "Calcular el campo eléctrico en las tres regiones del condensador esférico, derivar la capacidad C = 4πε₀ab/(b−a) y verificar el blindaje exterior cuando Q₂ = −Q.",
+    "theory": "El condensador esférico consiste en una esfera conductora interna (radio a = R, carga +Q) y una cáscara conductora externa (radio b, carga Q₂). Aplicando ∮E·dA = Q_enc/ε₀ con superficies esféricas: (1) r < a: E = 0 (conductor); (2) a < r < b: Q_enc = Q → E = kQ/r²; (3) r > b: Q_enc = Q+Q₂ → E = k(Q+Q₂)/r². Para el condensador ideal (Q₂ = −Q): E exterior = 0 y el campo queda completamente confinado entre las esferas. La diferencia de potencial entre las superficies es ΔV = kQ(1/a − 1/b), de donde la capacidad C = Q/ΔV = 4πε₀ab/(b−a), que diverge cuando b→a (separación infinitesimal) y tiende a 4πε₀a cuando b→∞ (esfera aislada).",
+    "hints": [],
+    "questions": [
+      "Con Q = 3 nC, a = 0.8 m y b = 2.5 m, calcula E en r = 1.5 m (entre esferas). Verifica con el visualizador. Luego confirma que E = 0 para r = 3.0 m cuando Q₂ = −Q.",
+      "Calcula la capacidad C = 4πε₀ab/(b−a) para a = 0.8 m y b = 2.5 m. Expresa el resultado en picofaradios (pF) usando ε₀ = 8.854×10⁻¹² F/m.",
+      "Si cambias Q₂ de −3 nC a −1 nC (carga total 2 nC), ¿cómo cambia E en r = 1.5 m? ¿Y en r = 3.5 m? Calcula analíticamente antes de ajustar el slider Q2.",
+      "Demuestra que la diferencia de potencial ΔV = V(a)−V(b) = kQ(1/a − 1/b). Con los valores del escenario, calcula ΔV numéricamente y comprueba que C = Q/ΔV coincide con la fórmula 4πε₀ab/(b−a)."
+    ],
+    "challenge": {
+      "description": "Modifica los parámetros del sistema para obtener la siguiente situación: carga total Q₁+Q₂ = 3 nC pero con Q₁ ≠ 3 nC, y superficie gaussiana en el exterior (r > b). El observable objetivo es un campo eléctrico en r = 3.5 m que depende únicamente de la carga total, no de la distribución interna. Calcula analíticamente qué E deberías medir, ajusta Q₁ y Q₂ libremente (manteniendo su suma = 3 nC) y arrastra rg hasta 3.5 m para verificar que el campo exterior solo depende de Q_total.",
+      "target_params": { "Q": 5.0, "Q2": -2.0, "R": 0.8, "b": 2.5, "rg": 3.5 },
+      "target_rg": 3.5,
+      "target_readout": { "Qenc_nC": 3.0, "flux_Nm2C": 338.9, "E_NC": 2.20 },
+      "tolerance": 0.08
+    }
+  },
+  {
+    "id": "G13",
+    "title": "Esfera aislante con ρ ∝ r: campo cuadrático y Q_enc ∝ r⁴",
+    "topic": "simetria_esferica",
+    "difficulty": 4,
+    "scenario": "nonuniform_sphere",
+    "params": { "Q": 3.0, "R": 1.5, "rg": 1.0 },
+    "objective": "Derivar el campo eléctrico de una esfera con densidad volumétrica no uniforme ρ(r) = ρ₀r/R, demostrar que E ∝ r² en el interior (contraste con E ∝ r para ρ uniforme), y verificar que el exterior es indistinguible de una carga puntual.",
+    "theory": "Una esfera de radio R con ρ(r) = ρ₀(r/R) tiene carga total Q = 4π∫₀^R ρ r² dr = 4πρ₀∫₀^R r³/R dr = πρ₀R³, de donde ρ₀ = Q/(πR³). La carga encerrada hasta radio r ≤ R es Q_enc(r) = 4πρ₀/R ∫₀^r r'³ dr' = (πρ₀r⁴/R) = Q(r/R)⁴. Aplicando ∮E·dA = Q_enc/ε₀ con una esfera de radio r: E·4πr² = Q(r/R)⁴/ε₀, de donde E = kQ r²/R⁴ ∝ r². Este crecimiento cuadrático (vs lineal para ρ uniforme) refleja que la carga se acumula preferentemente en la periferia: las capas externas son más densas. Para r > R el resultado es E = kQ/r², idéntico al de una carga puntual, independientemente de la distribución interna. La visualización muestra un gradiente de color más intenso en la periferia de la esfera.",
+    "hints": [],
+    "questions": [
+      "Con Q = 3 nC y R = 1.5 m, calcula E en r = 1.0 m usando E = kQr²/R⁴. Verifica con el visualizador. Compara con el valor que daría la esfera uniforme (insulating_sphere) a igual r: E_unif = kQr/R³.",
+      "Calcula la razón Q_enc(r)/Q para r = 0.5R, 0.75R y R. ¿Por qué Q_enc ∝ r⁴ en vez de r³? ¿Qué dice esto sobre dónde se concentra la carga en ρ ∝ r?",
+      "Para r > R, muestra analíticamente que E = kQ/r² sin importar la forma de ρ(r). ¿Qué propiedad de la Ley de Gauss garantiza este resultado universal para cualquier distribución esféricamente simétrica?",
+      "Determina el radio r* donde la esfera no uniforme produce el mismo campo que la esfera uniforme de igual Q y R. Plantea la ecuación kQr*²/R⁴ = kQr*/R³ y resuélvela. ¿Tiene sentido físico?"
+    ],
+    "challenge": {
+      "description": "La superficie gaussiana está actualmente en r = 1.0 m (interior de la esfera, región cuadrática). Calcula analíticamente qué flujo Φ = Q_enc/ε₀ mediría una superficie exterior a r = 2.5 m. Después arrastra rg hasta 2.5 m y verifica que el flujo coincide con tu predicción. El punto clave: aunque las distribuciones de carga interior son completamente diferentes, el flujo exterior solo depende de la carga total Q.",
+      "target_params": { "Q": 3.0, "R": 1.5, "rg": 2.5 },
+      "target_rg": 2.5,
+      "target_readout": { "Qenc_nC": 3.0, "flux_Nm2C": 338.9, "E_NC": 4.31 },
+      "tolerance": 0.08
+    }
   }
 ];
