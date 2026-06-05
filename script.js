@@ -357,6 +357,224 @@ const S = {
     }
   },
 
+  // ── Cilindro sólido aislante (ρ uniforme) ─────────────────────────────
+  insulating_cylinder: {
+    label:'Cilindro sólido aislante (ρ uniforme)', sym:'cylindrical',
+    show:['lam','R','rg'],
+    getE(r){
+      if(r<=0) return 0
+      const lam=p.lam*1e-9, R=p.R
+      return r<=R ? Math.abs(lam)*r/(2*Math.PI*EPS0*R**2)
+                  : Math.abs(lam)/(2*Math.PI*EPS0*r)
+    },
+    getQenc(r){
+      const lam=p.lam*1e-9
+      return r<=p.R ? lam*(r/p.R)**2 : lam
+    },
+    formula(){
+      const E=this.getE(p.rg), inside=p.rg<=p.R
+      return inside ? [
+        {t:'head', v:`Interior del cilindro (r < R = ${p.R.toFixed(2)} m)`},
+        {t:'key',  v:'E · 2πrL = ρπr²L / ε₀'},
+        {t:'key',  v:'→  E = λr / (2πε₀R²)  (∝ r)'},
+        {t:'res',  v:`E(${p.rg.toFixed(2)}m) = ${fmtE(E)}`},
+        {t:'dim',  v:`Q_enc/L = λ(r/R)² = ${fmtQ(this.getQenc(p.rg))}/m`},
+      ] : [
+        {t:'head', v:'Exterior del cilindro (r > R)'},
+        {t:'key',  v:'E · 2πrL = λL / ε₀'},
+        {t:'key',  v:'→  E = λ / (2πε₀r)  (∝ 1/r)'},
+        {t:'res',  v:`E(${p.rg.toFixed(2)}m) = ${fmtE(E)}`},
+        {t:'dim',  v:`Q_enc/L = λ = ${fmtQ(p.lam*1e-9)}/m`},
+      ]
+    },
+    drawSource(){
+      const R=p.R*SCALE, lam=p.lam
+      ctx.beginPath(); ctx.arc(cx,cy,R,0,TAU)
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,R)
+      g.addColorStop(0, lam>=0?'rgba(255,59,107,0.55)':'rgba(68,138,255,0.55)')
+      g.addColorStop(1, lam>=0?'rgba(255,59,107,0.08)':'rgba(68,138,255,0.08)')
+      ctx.fillStyle=g; ctx.fill()
+      ctx.strokeStyle=lam>=0?'rgba(255,59,107,0.5)':'rgba(68,138,255,0.5)'
+      ctx.lineWidth=1.5; ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([])
+      ctx.fillStyle='rgba(255,255,255,0.4)'; ctx.font='11px Inter'
+      ctx.textAlign='center'; ctx.textBaseline='middle'
+      ctx.fillText('ρ cte',cx,cy); ctx.textBaseline='alphabetic'
+    }
+  },
+
+  // ── Cable coaxial ──────────────────────────────────────────────────────
+  coaxial_cable: {
+    label:'Cable coaxial', sym:'cylindrical',
+    show:['lam','R','b','rg'],
+    _b(){ return Math.max(p.b, p.R+0.1) },
+    getE(r){
+      const b=this._b()
+      if(r<=0||r<=p.R) return 0
+      if(r<b) return Math.abs(p.lam*1e-9)/(2*Math.PI*EPS0*r)
+      return 0   // outer shell has −λ → total = 0
+    },
+    getQenc(r){
+      const lam=p.lam*1e-9, b=this._b()
+      if(r<=p.R) return 0
+      if(r<b) return lam
+      return 0
+    },
+    formula(){
+      const b=this._b(), E=this.getE(p.rg)
+      if(p.rg<=p.R) return [
+        {t:'head', v:`Interior conductor central (r ≤ ${p.R.toFixed(2)} m)`},
+        {t:'key',  v:'E = 0  (conductor)'},
+        {t:'res',  v:'Q_enc = 0'},
+      ]
+      if(p.rg<b) return [
+        {t:'head', v:'Entre conductores (R < r < b)'},
+        {t:'key',  v:'E · 2πrL = λL / ε₀'},
+        {t:'key',  v:'→  E = λ / (2πε₀r)'},
+        {t:'res',  v:`E(${p.rg.toFixed(2)}m) = ${fmtE(E)}`},
+        {t:'dim',  v:`Q_enc/L = λ = ${fmtQ(p.lam*1e-9)}/m`},
+      ]
+      return [
+        {t:'head', v:`Exterior del cable (r ≥ ${b.toFixed(2)} m)`},
+        {t:'key',  v:'Q_enc = +λ + (−λ) = 0  →  E = 0'},
+        {t:'res',  v:'E = 0  (apantallamiento perfecto)'},
+        {t:'dim',  v:'Aplicación: cables coaxiales de TV/RF'},
+      ]
+    },
+    drawSource(){
+      const a=p.R*SCALE, b=this._b()*SCALE, lam=p.lam
+      const cPos=lam>=0?'rgba(255,59,107,':'rgba(68,138,255,'
+      const cNeg=lam>=0?'rgba(68,138,255,':'rgba(255,59,107,'
+      // Outer shell (−λ), thin ring
+      ctx.beginPath()
+      ctx.arc(cx,cy,b+7,0,TAU,false); ctx.arc(cx,cy,b,0,TAU,true)
+      ctx.fillStyle=cNeg+'0.45)'; ctx.fill()
+      ctx.beginPath(); ctx.arc(cx,cy,b+7,0,TAU)
+      ctx.strokeStyle=cNeg+'0.8)'; ctx.lineWidth=2; ctx.stroke()
+      // Inner conductor (+λ)
+      ctx.beginPath(); ctx.arc(cx,cy,a,0,TAU)
+      ctx.fillStyle=cPos+'0.85)'; ctx.fill()
+      ctx.strokeStyle=cPos+'0.95)'; ctx.lineWidth=2; ctx.stroke()
+      ctx.fillStyle='#fff'; ctx.font='bold 11px Inter'
+      ctx.textAlign='center'; ctx.textBaseline='middle'
+      ctx.fillText(lam>=0?'+λ':'−λ',cx,cy); ctx.textBaseline='alphabetic'
+    }
+  },
+
+  // ── Condensador esférico ───────────────────────────────────────────────
+  spherical_cap: {
+    label:'Condensador esférico', sym:'spherical',
+    show:['Q','Q2','R','b','rg'],
+    _b(){ return Math.max(p.b, p.R+0.1) },
+    getE(r){
+      const Q=p.Q*1e-9, Qtot=(p.Q+p.Q2)*1e-9, b=this._b()
+      if(r<=p.R) return 0
+      if(r<b) return K*Q/r**2
+      return K*Qtot/r**2
+    },
+    getQenc(r){
+      const Q=p.Q*1e-9, Qtot=(p.Q+p.Q2)*1e-9, b=this._b()
+      if(r<=p.R) return 0
+      if(r<b) return Q
+      return Qtot
+    },
+    formula(){
+      const b=this._b(), Q=p.Q*1e-9, Qtot=(p.Q+p.Q2)*1e-9, E=this.getE(p.rg)
+      if(p.rg<=p.R) return [
+        {t:'head', v:`Interior esfera interna (r ≤ ${p.R.toFixed(2)} m)`},
+        {t:'key',  v:'E = 0  (conductor)'},
+        {t:'res',  v:'Q_enc = 0'},
+      ]
+      if(p.rg<b) return [
+        {t:'head', v:'Entre esferas (R < r < b)'},
+        {t:'key',  v:'E · 4πr² = Q / ε₀  →  E = kQ / r²'},
+        {t:'res',  v:`E(${p.rg.toFixed(2)}m) = ${fmtE(E)}`},
+        {t:'dim',  v:`Q_enc = Q = ${fmtQ(Q)}`},
+      ]
+      const isIdeal=Math.abs(Qtot)<1e-12
+      return isIdeal ? [
+        {t:'head', v:'Exterior condensador esférico (r > b)'},
+        {t:'key',  v:'Q_enc = Q + Q₂ = 0  →  E = 0'},
+        {t:'res',  v:'E = 0  (apantallamiento perfecto)'},
+        {t:'dim',  v:'Capacidad: C = 4πε₀ · ab/(b−a)'},
+      ] : [
+        {t:'head', v:`Exterior (r > ${b.toFixed(2)} m)`},
+        {t:'key',  v:'E = k(Q+Q₂) / r²'},
+        {t:'res',  v:`E(${p.rg.toFixed(2)}m) = ${fmtE(E)}`},
+        {t:'dim',  v:`Q_enc = Q+Q₂ = ${fmtQ(Qtot)}`},
+      ]
+    },
+    drawSource(){
+      const a=p.R*SCALE, b=this._b()*SCALE, q1pos=p.Q>=0, qtotpos=(p.Q+p.Q2)>=0
+      // Outer shell (thin ring)
+      ctx.beginPath()
+      ctx.arc(cx,cy,b+5,0,TAU,false); ctx.arc(cx,cy,b,0,TAU,true)
+      ctx.fillStyle='rgba(55,65,100,0.55)'; ctx.fill()
+      ctx.beginPath(); ctx.arc(cx,cy,b+5,0,TAU)
+      ctx.strokeStyle=qtotpos?'rgba(255,59,107,0.8)':'rgba(68,138,255,0.8)'
+      ctx.lineWidth=3; ctx.stroke()
+      ctx.beginPath(); ctx.arc(cx,cy,b,0,TAU)
+      ctx.strokeStyle='rgba(200,200,200,0.25)'; ctx.lineWidth=1; ctx.stroke()
+      // Inner sphere (conductor)
+      ctx.beginPath(); ctx.arc(cx,cy,a,0,TAU)
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,a)
+      g.addColorStop(0,'rgba(45,55,80,0.97)')
+      g.addColorStop(0.82,'rgba(45,55,80,0.97)')
+      g.addColorStop(1, q1pos?'rgba(255,59,107,0.8)':'rgba(68,138,255,0.8)')
+      ctx.fillStyle=g; ctx.fill()
+      ctx.strokeStyle=q1pos?'rgba(255,59,107,0.9)':'rgba(68,138,255,0.9)'
+      ctx.lineWidth=2.5; ctx.stroke()
+      ctx.fillStyle='rgba(255,255,255,0.35)'; ctx.font='11px Inter'
+      ctx.textAlign='center'; ctx.textBaseline='middle'
+      ctx.fillText('Q',cx,cy); ctx.textBaseline='alphabetic'
+    }
+  },
+
+  // ── Esfera aislante ρ ∝ r ──────────────────────────────────────────────
+  nonuniform_sphere: {
+    label:'Esfera aislante ρ ∝ r', sym:'spherical',
+    show:['Q','R','rg'],
+    getE(r){
+      const Q=p.Q*1e-9
+      if(r<=0) return 0
+      return r<=p.R ? K*Q*r**2/p.R**4   // ∝ r²
+                    : K*Q/r**2
+    },
+    getQenc(r){
+      const Q=p.Q*1e-9
+      return r<=p.R ? Q*(r/p.R)**4 : Q
+    },
+    formula(){
+      const E=this.getE(p.rg), inside=p.rg<=p.R
+      return inside ? [
+        {t:'head', v:`Interior, ρ(r) = ρ₀ · (r/R)  (r < ${p.R.toFixed(2)} m)`},
+        {t:'key',  v:'Q_enc = Q(r/R)⁴'},
+        {t:'key',  v:'→  E = kQr² / R⁴  (∝ r²)'},
+        {t:'res',  v:`E(${p.rg.toFixed(2)}m) = ${fmtE(E)}`},
+        {t:'dim',  v:`Q_enc = ${fmtQ(this.getQenc(p.rg))}`},
+      ] : [
+        {t:'head', v:'Exterior (r > R) — igual que carga puntual'},
+        {t:'key',  v:'E = kQ / r²'},
+        {t:'res',  v:`E(${p.rg.toFixed(2)}m) = ${fmtE(E)}`},
+        {t:'dim',  v:`Q_enc = Q = ${fmtQ(p.Q*1e-9)}`},
+      ]
+    },
+    drawSource(){
+      const R=p.R*SCALE, q=p.Q
+      // Gradient denser at edge (ρ ∝ r)
+      ctx.beginPath(); ctx.arc(cx,cy,R,0,TAU)
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,R)
+      g.addColorStop(0,'rgba(0,0,0,0)')
+      g.addColorStop(0.5, q>=0?'rgba(255,59,107,0.2)':'rgba(68,138,255,0.2)')
+      g.addColorStop(1,   q>=0?'rgba(255,59,107,0.8)':'rgba(68,138,255,0.8)')
+      ctx.fillStyle=g; ctx.fill()
+      ctx.strokeStyle=q>=0?'rgba(255,59,107,0.55)':'rgba(68,138,255,0.55)'
+      ctx.lineWidth=1.5; ctx.setLineDash([5,4]); ctx.stroke(); ctx.setLineDash([])
+      ctx.fillStyle='rgba(255,255,255,0.45)'; ctx.font='10px Inter'
+      ctx.textAlign='center'; ctx.textBaseline='middle'
+      ctx.fillText('ρ∝r',cx,cy); ctx.textBaseline='alphabetic'
+    }
+  },
+
   magnetic: {
     label:'Gauss magnético: ∮B·dA = 0', sym:'magnetic',
     show:['rg'],
@@ -788,11 +1006,13 @@ function drawEGraph(){
   // Use |E|: getE() is signed for negative charges but the graph plots magnitude.
   const E_rg=Math.abs(scen.getE(p.rg))
   let E_R=0
-  if(['conducting_sphere','insulating_sphere','spherical_shell'].includes(sc)&&p.R<rMax)
+  if(['conducting_sphere','insulating_sphere','spherical_shell','insulating_cylinder','nonuniform_sphere'].includes(sc)&&p.R<rMax)
     E_R=Math.abs(scen.getE(p.R+0.01))
   else if(sc==='thick_shell'){
     const {a,b,c}=scen._clamp()
     E_R=Math.max(Math.abs(scen.getE(a+0.01)), Math.abs(scen.getE(c+0.01)))
+  } else if(sc==='coaxial_cable'||sc==='spherical_cap'){
+    E_R=Math.abs(scen.getE(scen._b()-0.05))  // peak just inside outer boundary
   }
   let eMax=Math.max(isFinite(E_rg)?E_rg:0, isFinite(E_R)?E_R:0)
   if(eMax===0) eMax=Math.abs(scen.getE(1.0))   // fallback: |E| at 1 m
@@ -849,13 +1069,32 @@ function drawEGraph(){
   }
 
   // Boundary markers
-  if(['conducting_sphere','insulating_sphere','spherical_shell'].includes(sc)){
+  if(['conducting_sphere','insulating_sphere','spherical_shell','insulating_cylinder','nonuniform_sphere'].includes(sc)){
     const Rpx=px+(p.R/rMax)*pw
     ctx.strokeStyle='rgba(255,202,40,0.7)';ctx.lineWidth=1.5;ctx.setLineDash([4,3])
     ctx.beginPath();ctx.moveTo(Rpx,py);ctx.lineTo(Rpx,py+ph);ctx.stroke()
     ctx.setLineDash([])
     ctx.fillStyle='rgba(255,202,40,0.8)';ctx.font=fsTick;ctx.textAlign='center'
     ctx.fillText('R',Rpx,py-4)
+  } else if(sc==='coaxial_cable'||sc==='spherical_cap'){
+    // Mark inner (R) and outer (b) boundaries; shade the zero-field region
+    const b=S[sc]._b()
+    const xR=px+(p.R/rMax)*pw, xb=px+(Math.min(b,rMax)/rMax)*pw
+    // Shade inner conductor (0→R)
+    ctx.fillStyle='rgba(100,100,120,0.12)'; ctx.fillRect(px,py,xR-px,ph)
+    if(sc==='coaxial_cable'){
+      // Shade outside coaxial (b→rMax) where E=0
+      ctx.fillStyle='rgba(100,100,120,0.12)'; ctx.fillRect(xb,py,px+pw-xb,ph)
+    }
+    for(const [lbl,xp] of [['R',xR],['b',xb]]){
+      if(xp>px&&xp<px+pw){
+        ctx.strokeStyle='rgba(255,202,40,0.65)';ctx.lineWidth=1.3;ctx.setLineDash([4,3])
+        ctx.beginPath();ctx.moveTo(xp,py);ctx.lineTo(xp,py+ph);ctx.stroke()
+        ctx.setLineDash([])
+        ctx.fillStyle='rgba(255,202,40,0.8)';ctx.font=fsTick;ctx.textAlign='center'
+        ctx.fillText(lbl,xp,py-4)
+      }
+    }
   } else if(sc==='thick_shell'){
     const {a,b,c}=scen._clamp()
     // Shade the conductor region (b→c) in the graph
@@ -879,7 +1118,7 @@ function drawEGraph(){
   ctx.beginPath();ctx.moveTo(rgPx,py);ctx.lineTo(rgPx,py+ph);ctx.stroke()
 
   // E(r) curve — break at internal-zero regions
-  const hasZeroInside=['conducting_sphere','spherical_shell'].includes(sc)
+  const hasZeroInside=['conducting_sphere','spherical_shell','coaxial_cable','spherical_cap'].includes(sc)
   ctx.beginPath();ctx.strokeStyle='#7ec8e3';ctx.lineWidth=2.5
   let first=true
   for(const {r,e} of pts){
@@ -959,7 +1198,11 @@ const PARAM_MAP = {
   infinite_plane:    ['sig','rg','yoff'],
   capacitor:         ['sig','d','rg','yoff'],
   magnetic:          ['rg'],
-  thick_shell:       ['Q','Q2','R','b','c','rg'],
+  thick_shell:          ['Q','Q2','R','b','c','rg'],
+  insulating_cylinder:  ['lam','R','rg'],
+  coaxial_cable:        ['lam','R','b','rg'],
+  spherical_cap:        ['Q','Q2','R','b','rg'],
+  nonuniform_sphere:    ['Q','R','rg'],
 }
 function syncParamVisibility(){
   const show=PARAM_MAP[sc]
@@ -1032,6 +1275,90 @@ function drawThickShellFieldLines(){
   drawAnnularLines(c*SCALE+3, D, Qtot)
 }
 
+// ── Coaxial field lines: only between conductors ──────────────────────────
+function drawCoaxialFieldLines(){
+  const scen=S[sc]
+  const b=scen._b()
+  const lam=p.lam
+  if(Math.abs(lam)<1e-6) return
+  const rInner=p.R*SCALE+3, rOuter=b*SCALE-3
+  if(rOuter<=rInner) return
+  const nLines=Math.max(0,Math.min(48,Math.round(12*Math.abs(lam))))
+  const isNeg=lam<0
+  const lineCol=isNeg?'rgba(68,138,255,0.20)':'rgba(255,80,100,0.20)'
+  const arrCol =isNeg?'rgba(68,138,255,0.7)' :'rgba(255,80,100,0.7)'
+  const spacing=Math.max(50,Math.round(900/nLines))
+  for(let i=0;i<nLines;i++){
+    const ang=(i/nLines)*TAU, cos=Math.cos(ang), sin=Math.sin(ang)
+    ctx.beginPath()
+    ctx.moveTo(cx+rInner*cos, cy+rInner*sin)
+    ctx.lineTo(cx+rOuter*cos, cy+rOuter*sin)
+    ctx.strokeStyle=lineCol; ctx.lineWidth=1; ctx.stroke()
+    const arrDir=isNeg?ang+Math.PI:ang
+    let dist=rInner+spacing*0.55
+    while(dist<rOuter){
+      const ax=cx+dist*cos, ay=cy+dist*sin
+      const E_at=Math.abs(scen.getE(dist/SCALE))
+      const E_mid=Math.abs(scen.getE((rInner+rOuter)*0.5/SCALE))
+      const scale=E_mid>0?Math.min(2.5,Math.max(0.2,E_at/E_mid)):1
+      if(scale>0.2) arrow(ax-Math.cos(arrDir)*8*scale*0.5, ay-Math.sin(arrDir)*8*scale*0.5,
+                          arrDir, Math.max(5,Math.round(10*scale)), arrCol, 0, Math.max(3,Math.round(5*scale)))
+      dist+=spacing
+    }
+  }
+}
+
+// ── Spherical-cap field lines: inner vacuum + optional exterior ───────────
+function drawSphericalCapFieldLines(){
+  const scen=S[sc], b=scen._b()
+  const Q=p.Q, Qtot=p.Q+p.Q2
+  const D=Math.hypot(W,H)
+  // Between spheres: charge Q
+  if(Math.abs(Q)>1e-6){
+    const rI=p.R*SCALE+3, rO=b*SCALE-3
+    if(rO>rI){
+      const nL=Math.min(64,Math.round(12*Math.abs(Q)))
+      const isNeg=Q<0
+      const lineCol=isNeg?'rgba(68,138,255,0.20)':'rgba(255,80,100,0.20)'
+      const arrCol =isNeg?'rgba(68,138,255,0.7)':'rgba(255,80,100,0.7)'
+      const E_ref=Math.abs(scen.getE((rI+rO)*0.5/SCALE))
+      for(let i=0;i<nL;i++){
+        const ang=(i/nL)*TAU, cos=Math.cos(ang), sin=Math.sin(ang)
+        ctx.beginPath(); ctx.moveTo(cx+rI*cos,cy+rI*sin); ctx.lineTo(cx+rO*cos,cy+rO*sin)
+        ctx.strokeStyle=lineCol; ctx.lineWidth=1; ctx.stroke()
+        const dir=isNeg?ang+Math.PI:ang
+        for(let d=rI+60;d<rO;d+=80){
+          const E_at=Math.abs(scen.getE(d/SCALE))
+          const sc2=E_ref>0?Math.min(2.5,Math.max(0.2,E_at/E_ref)):1
+          if(sc2>0.2) arrow(cx+d*cos-Math.cos(dir)*5,cy+d*sin-Math.sin(dir)*5,dir,10,arrCol,0,5)
+        }
+      }
+    }
+  }
+  // Exterior: charge Q+Q2 (skip if zero)
+  if(Math.abs(Qtot)>1e-6){
+    const rStart=b*SCALE+3
+    const nL=Math.min(64,Math.round(12*Math.abs(Qtot)))
+    const isNeg=Qtot<0
+    const lineCol=isNeg?'rgba(68,138,255,0.20)':'rgba(255,80,100,0.20)'
+    const arrCol =isNeg?'rgba(68,138,255,0.7)':'rgba(255,80,100,0.7)'
+    const arrowSpacing=Math.max(50,Math.round(1100/nL))
+    for(let i=0;i<nL;i++){
+      const ang=(i/nL)*TAU, cos=Math.cos(ang), sin=Math.sin(ang)
+      ctx.beginPath(); ctx.moveTo(cx+rStart*cos,cy+rStart*sin); ctx.lineTo(cx+D*cos,cy+D*sin)
+      ctx.strokeStyle=lineCol; ctx.lineWidth=1; ctx.stroke()
+      const dir=isNeg?ang+Math.PI:ang
+      let dist=rStart+arrowSpacing*0.55
+      while(dist<D){
+        const ax=cx+dist*cos, ay=cy+dist*sin
+        if(ax<-20||ax>W+20||ay<-20||ay>H+20) break
+        arrow(ax-Math.cos(dir)*5,ay-Math.sin(dir)*5,dir,11,arrCol,0,5)
+        dist+=arrowSpacing
+      }
+    }
+  }
+}
+
 // ── Main render ───────────────────────────────────────────────────────────
 function render(){
   drawBackground()
@@ -1044,14 +1371,22 @@ function render(){
     drawMagneticField()
   } else if(sc==='thick_shell'){
     if(opts.lines) drawThickShellFieldLines()
-    scen.drawSource()
-    drawSphericalGaussian()
+    scen.drawSource(); drawSphericalGaussian()
+    if(opts.flux) drawFluxArrowsSph()
+    if(opts.graph) drawEGraph()
+  } else if(sc==='coaxial_cable'){
+    if(opts.lines) drawCoaxialFieldLines()
+    scen.drawSource(); drawSphericalGaussian()
+    if(opts.flux) drawFluxArrowsSph()
+    if(opts.graph) drawEGraph()
+  } else if(sc==='spherical_cap'){
+    if(opts.lines) drawSphericalCapFieldLines()
+    scen.drawSource(); drawSphericalGaussian()
     if(opts.flux) drawFluxArrowsSph()
     if(opts.graph) drawEGraph()
   } else if(sym==='spherical'||sym==='cylindrical'){
     if(opts.lines) drawRadialFieldLines()
-    scen.drawSource()
-    drawSphericalGaussian()
+    scen.drawSource(); drawSphericalGaussian()
     if(opts.flux) drawFluxArrowsSph()
     if(opts.graph) drawEGraph()
   } else if(sym==='planar'){
@@ -1317,10 +1652,16 @@ function initEvents(){
 
   document.getElementById('scenarioSelect').addEventListener('change',e=>{
     sc=e.target.value
-    if(sc==='thick_shell'){
-      // Load geometry defaults: a=0.8 m, b=1.5 m, c=2.5 m, rg=3.2 m
-      Object.assign(p,{Q:3.0,Q2:-1.0,R:0.8,b:1.5,c:2.5,rg:3.2})
-      ;['Q','Q2','R','b','c','rg'].forEach(k=>setSlider(k,p[k]))
+    const _scDefaults = {
+      thick_shell:         {Q:3.0, Q2:-1.0, R:0.8, b:1.5, c:2.5, rg:3.2},
+      insulating_cylinder: {lam:2.0, R:1.5, rg:2.5},
+      coaxial_cable:       {lam:2.0, R:0.5, b:2.5, rg:1.2},
+      spherical_cap:       {Q:3.0, Q2:-3.0, R:0.8, b:2.5, rg:1.5},
+      nonuniform_sphere:   {Q:3.0, R:1.5, rg:2.5},
+    }
+    if(_scDefaults[sc]){
+      Object.assign(p, _scDefaults[sc])
+      Object.keys(_scDefaults[sc]).forEach(k=>setSlider(k,p[k]))
     }
     syncParamVisibility()
     render()
