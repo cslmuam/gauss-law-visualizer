@@ -1682,6 +1682,19 @@ function initEvents(){
   document.getElementById('optGraph').addEventListener('change',e=>{ opts.graph=e.target.checked; render() })
   document.getElementById('optGrid').addEventListener('change',e=>{ opts.grid=e.target.checked; render() })
 
+  document.getElementById('btnShare').addEventListener('click', () => {
+    canvas.toBlob(async blob => {
+      const file = new File([blob], 'ley-de-gauss.png', {type: 'image/png'})
+      if (navigator.canShare?.({files: [file]})) {
+        try { await navigator.share({title: 'Ley de Gauss', files: [file]}); return } catch {}
+      }
+      const a = Object.assign(document.createElement('a'), {
+        href: URL.createObjectURL(blob), download: 'ley-de-gauss.png'
+      })
+      a.click(); URL.revokeObjectURL(a.href)
+    }, 'image/png')
+  })
+
   window.addEventListener('resize',resize)
 
   // Mobile: tap handle pill to toggle panel

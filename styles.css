@@ -342,6 +342,25 @@ input[type=range]::-webkit-slider-thumb {
 }
 .exit-challenge-btn:hover { border-color: rgba(255,255,255,0.3); color: var(--text); }
 
+/* ── Share / save image button ── */
+.share-btn {
+  width: 100%;
+  background: transparent;
+  border: 1px solid rgba(255, 202, 40, 0.28);
+  border-radius: 8px;
+  color: #ffca28;
+  font-family: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  padding: 10px;
+  cursor: pointer;
+  transition: background 0.2s, border-color 0.2s;
+}
+.share-btn:hover {
+  background: rgba(255, 202, 40, 0.07);
+  border-color: rgba(255, 202, 40, 0.55);
+}
+
 /* ── Mobile handle (hidden on desktop) ── */
 .mobile-handle {
   display: none;
