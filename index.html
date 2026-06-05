@@ -27,6 +27,7 @@
         <option value="infinite_line">L&#237;nea de carga (cilindro gaussiano)</option>
         <option value="infinite_plane">Plano infinito (pillbox)</option>
         <option value="capacitor">Condensador de placas paralelas</option>
+        <option value="thick_shell">Cascar&#243;n esf&#233;rico de ancho finito</option>
         <option value="magnetic">Gauss magn&#233;tico: &#8750;B&#183;dA = 0</option>
       </select>
     </div>
@@ -59,6 +60,18 @@
       <div class="slider-group" id="pg-yoff">
         <label>Posici&#243;n pillbox y&#8320; <span id="pv-yoff">0.00 m</span></label>
         <input type="range" id="ps-yoff" min="-4.0" max="4.0" step="0.1" value="0">
+      </div>
+      <div class="slider-group" id="pg-Q2">
+        <label>Carga cascar&#243;n Q&#8322; <span id="pv-Q2">-1.0 nC</span></label>
+        <input type="range" id="ps-Q2" min="-10" max="10" step="0.5" value="-1">
+      </div>
+      <div class="slider-group" id="pg-b">
+        <label>Radio interno b <span id="pv-b">1.50 m</span></label>
+        <input type="range" id="ps-b" min="0.2" max="3.5" step="0.1" value="1.5">
+      </div>
+      <div class="slider-group" id="pg-c">
+        <label>Radio externo c <span id="pv-c">2.20 m</span></label>
+        <input type="range" id="ps-c" min="0.4" max="4.5" step="0.1" value="2.2">
       </div>
     </div>
 

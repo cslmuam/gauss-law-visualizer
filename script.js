@@ -7,7 +7,7 @@ const TAU  = 2 * Math.PI
 
 // ── App state ─────────────────────────────────────────────────────────────
 let sc = 'point_charge'
-let p = { Q:2.0, R:1.5, rg:2.5, lam:1.0, sig:1.0, d:2.0, yoff:0.0 }
+let p = { Q:2.0, R:1.5, rg:2.5, lam:1.0, sig:1.0, d:2.0, yoff:0.0, Q2:-1.0, b:1.5, c:2.2 }
 let opts = { lines:true, flux:true, graph:true, grid:false }
 let isDragging = false
 
@@ -261,6 +261,100 @@ const S = {
       ]
     },
     drawSource() {}
+  },
+
+  thick_shell: {
+    label:'Cascarón esférico de ancho finito', sym:'spherical',
+    show:['Q','Q2','R','b','c','rg'],
+    // Q  = Q₁ (inner sphere charge), R = a (inner sphere radius)
+    // Q2 = shell total charge, b = shell inner radius, c = shell outer radius
+    // Regions: r<a (sphere), a<r<b (vacuum), b<r<c (conductor), r>c (exterior)
+    _clamp(){ return {a:p.R, b:Math.max(p.b,p.R+0.05), c:Math.max(p.c,Math.max(p.b,p.R+0.05)+0.05)} },
+    getE(r){
+      const {a,b,c}=this._clamp()
+      const Q1=p.Q*1e-9, Qtot=(p.Q+p.Q2)*1e-9
+      if(r<=0)       return 0
+      if(r<=a)       return K*Q1*r/a**3          // inside sphere (∝ r)
+      if(r<b)        return K*Q1/r**2            // vacuum between sphere and shell
+      if(r<=c)       return 0                    // inside conductor
+      return K*Qtot/r**2                         // exterior
+    },
+    getQenc(r){
+      const {a,b,c}=this._clamp()
+      const Q1=p.Q*1e-9, Qtot=(p.Q+p.Q2)*1e-9
+      if(r<=a)  return Q1*(r/a)**3
+      if(r<b)   return Q1
+      if(r<=c)  return 0
+      return Qtot
+    },
+    formula(){
+      const {a,b,c}=this._clamp()
+      const rg=p.rg, Q1=p.Q*1e-9, Qtot=(p.Q+p.Q2)*1e-9
+      const E=this.getE(rg), Qenc=this.getQenc(rg)
+      if(rg<=a) return [
+        {t:'head', v:`Interior de la esfera (r < a = ${a.toFixed(2)} m)`},
+        {t:'key',  v:'E · 4πr² = Q₁(r/a)³ / ε₀'},
+        {t:'key',  v:'→  E = kQ₁r / a³  (∝ r)'},
+        {t:'res',  v:`E(${rg.toFixed(2)}m) = ${fmtE(E)}`},
+        {t:'dim',  v:`Q_enc = ${fmtQ(Qenc)}`},
+      ]
+      if(rg<b)  return [
+        {t:'head', v:`Vacío entre esfera y casco (a < r < b)`},
+        {t:'key',  v:'E · 4πr² = Q₁ / ε₀'},
+        {t:'key',  v:'→  E = kQ₁ / r²'},
+        {t:'res',  v:`E(${rg.toFixed(2)}m) = ${fmtE(E)}`},
+        {t:'dim',  v:`Q_enc = Q₁ = ${fmtQ(Q1)}`},
+      ]
+      if(rg<=c) return [
+        {t:'head', v:`Interior del casco conductor (b ≤ r ≤ c)`},
+        {t:'key',  v:'Q_enc = Q₁ + (−Q₁) = 0'},
+        {t:'key',  v:'→  E = 0'},
+        {t:'res',  v:'E = 0  (blindaje electrostático)'},
+        {t:'dim',  v:'Cara interna: −Q₁;  cara externa: Q₁+Q₂'},
+      ]
+      return [
+        {t:'head', v:`Exterior del sistema (r > c = ${c.toFixed(2)} m)`},
+        {t:'key',  v:'E · 4πr² = (Q₁+Q₂) / ε₀'},
+        {t:'key',  v:'→  E = k(Q₁+Q₂) / r²'},
+        {t:'res',  v:`E(${rg.toFixed(2)}m) = ${fmtE(E)}`},
+        {t:'dim',  v:`Q_enc = Q₁+Q₂ = ${fmtQ(Qtot)}`},
+      ]
+    },
+    drawSource(){
+      const {a,b,c}=this._clamp()
+      const ap=a*SCALE, bp=b*SCALE, cp=c*SCALE
+      const q1pos=p.Q>=0, q2pos=(p.Q+p.Q2)>=0
+
+      // Shell annulus (conducting)
+      ctx.beginPath()
+      ctx.arc(cx,cy,cp,0,TAU,false)
+      ctx.arc(cx,cy,bp,0,TAU,true)
+      ctx.fillStyle='rgba(55,65,100,0.55)'; ctx.fill()
+      ctx.beginPath(); ctx.arc(cx,cy,cp,0,TAU)
+      ctx.strokeStyle=q2pos?'rgba(255,59,107,0.8)':'rgba(68,138,255,0.8)'
+      ctx.lineWidth=3; ctx.stroke()
+      ctx.beginPath(); ctx.arc(cx,cy,bp,0,TAU)
+      ctx.strokeStyle='rgba(200,200,200,0.35)'; ctx.lineWidth=1.2; ctx.stroke()
+
+      // Inner sphere (insulating, gradient)
+      ctx.beginPath(); ctx.arc(cx,cy,ap,0,TAU)
+      const g=ctx.createRadialGradient(cx,cy,0,cx,cy,ap)
+      g.addColorStop(0, q1pos?'rgba(255,59,107,0.7)':'rgba(68,138,255,0.7)')
+      g.addColorStop(1, q1pos?'rgba(255,59,107,0.08)':'rgba(68,138,255,0.08)')
+      ctx.fillStyle=g; ctx.fill()
+      ctx.strokeStyle=q1pos?'rgba(255,59,107,0.6)':'rgba(68,138,255,0.6)'
+      ctx.lineWidth=1.5; ctx.setLineDash([4,3]); ctx.stroke(); ctx.setLineDash([])
+
+      // Labels
+      ctx.font='bold 10px Inter'; ctx.textAlign='center'; ctx.textBaseline='middle'
+      ctx.fillStyle='rgba(255,255,255,0.55)'
+      ctx.fillText('Q₁',cx,cy)
+      if(cp-bp>18){
+        ctx.fillText('Q₂',cx,(cy-bp-cy-cp)/2)   // midpoint in canvas coords
+        ctx.fillText('Q₂',cx,cy-(bp+cp)/2)
+      }
+      ctx.textBaseline='alphabetic'
+    }
   },
 
   magnetic: {
@@ -693,8 +787,13 @@ function drawEGraph(){
   // Anchor y-scale to current operating point to avoid singularity domination.
   // Use |E|: getE() is signed for negative charges but the graph plots magnitude.
   const E_rg=Math.abs(scen.getE(p.rg))
-  const E_R =(['conducting_sphere','insulating_sphere','spherical_shell'].includes(sc)&&p.R<rMax)
-              ? Math.abs(scen.getE(p.R+0.01)) : 0
+  let E_R=0
+  if(['conducting_sphere','insulating_sphere','spherical_shell'].includes(sc)&&p.R<rMax)
+    E_R=Math.abs(scen.getE(p.R+0.01))
+  else if(sc==='thick_shell'){
+    const {a,b,c}=scen._clamp()
+    E_R=Math.max(Math.abs(scen.getE(a+0.01)), Math.abs(scen.getE(c+0.01)))
+  }
   let eMax=Math.max(isFinite(E_rg)?E_rg:0, isFinite(E_R)?E_R:0)
   if(eMax===0) eMax=Math.abs(scen.getE(1.0))   // fallback: |E| at 1 m
   eMax=isFinite(eMax)&&eMax>0 ? eMax*2.2 : 1
@@ -749,7 +848,7 @@ function drawEGraph(){
     ctx.fillText(_fmtY(Eval),px-4,ytp+3.5)
   }
 
-  // R marker
+  // Boundary markers
   if(['conducting_sphere','insulating_sphere','spherical_shell'].includes(sc)){
     const Rpx=px+(p.R/rMax)*pw
     ctx.strokeStyle='rgba(255,202,40,0.7)';ctx.lineWidth=1.5;ctx.setLineDash([4,3])
@@ -757,6 +856,21 @@ function drawEGraph(){
     ctx.setLineDash([])
     ctx.fillStyle='rgba(255,202,40,0.8)';ctx.font=fsTick;ctx.textAlign='center'
     ctx.fillText('R',Rpx,py-4)
+  } else if(sc==='thick_shell'){
+    const {a,b,c}=scen._clamp()
+    // Shade the conductor region (b→c) in the graph
+    const xb=px+(Math.min(b,rMax)/rMax)*pw, xc=px+(Math.min(c,rMax)/rMax)*pw
+    ctx.fillStyle='rgba(68,138,255,0.07)'; ctx.fillRect(xb,py,xc-xb,ph)
+    // Draw a,b,c markers
+    for(const [lbl,val] of [['a',a],['b',b],['c',c]]){
+      if(val>=rMax) continue
+      const xm=px+(val/rMax)*pw
+      ctx.strokeStyle='rgba(255,202,40,0.65)';ctx.lineWidth=1.3;ctx.setLineDash([4,3])
+      ctx.beginPath();ctx.moveTo(xm,py);ctx.lineTo(xm,py+ph);ctx.stroke()
+      ctx.setLineDash([])
+      ctx.fillStyle='rgba(255,202,40,0.8)';ctx.font=fsTick;ctx.textAlign='center'
+      ctx.fillText(lbl,xm,py-4)
+    }
   }
 
   // r_gauss marker
@@ -845,15 +959,16 @@ const PARAM_MAP = {
   infinite_plane:    ['sig','rg','yoff'],
   capacitor:         ['sig','d','rg','yoff'],
   magnetic:          ['rg'],
+  thick_shell:       ['Q','Q2','R','b','c','rg'],
 }
 function syncParamVisibility(){
   const show=PARAM_MAP[sc]
-  const all=['Q','R','rg','lam','sig','d','yoff']
+  const all=['Q','R','rg','lam','sig','d','yoff','Q2','b','c']
   all.forEach(k=>{
     const el=document.getElementById(`pg-${k}`)
     if(el) el.style.display=show.includes(k)?'':'none'
   })
-  // Update rg label for planar
+  // Update rg label for planar; update R label for thick_shell
   const rgLabel=document.querySelector('#pg-rg label')
   if(rgLabel){
     const scen=S[sc]
@@ -862,6 +977,59 @@ function syncParamVisibility(){
     else
       rgLabel.childNodes[0].textContent='Radio gaussiano r '
   }
+  const rLabel=document.querySelector('#pg-R label')
+  if(rLabel)
+    rLabel.childNodes[0].textContent = sc==='thick_shell' ? 'Radio esfera a ' : 'Radio fuente R '
+}
+
+// ── Thick-shell field lines (two separate annular regions, gap in conductor) ──
+function drawThickShellFieldLines(){
+  const scen=S[sc]
+  const {a,b,c}=scen._clamp()
+  const Q1=p.Q, Qtot=p.Q+p.Q2
+  const D=Math.hypot(W,H)
+
+  function drawAnnularLines(rInner_px, rOuter_px, charge, label){
+    if(Math.abs(charge)<1e-6) return
+    const nLines=Math.max(0,Math.min(64,Math.round(12*Math.abs(charge))))
+    if(nLines===0) return
+    const isNeg=charge<0
+    const lineCol=isNeg?'rgba(68,138,255,0.20)':'rgba(255,80,100,0.20)'
+    const arrCol =isNeg?'rgba(68,138,255,0.7)' :'rgba(255,80,100,0.7)'
+    const dir=isNeg?-1:1
+    const arrowSpacing=Math.max(50,Math.round(900/nLines))
+
+    for(let i=0;i<nLines;i++){
+      const ang=(i/nLines)*TAU
+      const cos=Math.cos(ang), sin=Math.sin(ang)
+      // Line segment from rInner to rOuter
+      ctx.beginPath()
+      ctx.moveTo(cx+rInner_px*cos, cy+rInner_px*sin)
+      ctx.lineTo(cx+rOuter_px*cos, cy+rOuter_px*sin)
+      ctx.strokeStyle=lineCol; ctx.lineWidth=1; ctx.stroke()
+      // Arrows along the segment
+      const arrDir=isNeg?ang+Math.PI:ang
+      let dist=rInner_px+arrowSpacing*0.55
+      while(dist<rOuter_px){
+        const ax=cx+dist*cos, ay=cy+dist*sin
+        if(ax<-20||ax>W+20||ay<-20||ay>H+20) break
+        const E_at=Math.abs(scen.getE(dist/SCALE))
+        const E_ref=Math.abs(scen.getE((rInner_px+rOuter_px)*0.5/SCALE))
+        const scale=E_ref>0&&isFinite(E_at)?Math.min(2.8,Math.max(0.18,E_at/E_ref)):1
+        if(scale>0.18){
+          const aLen=Math.max(4,Math.round(11*scale))
+          const hSz =Math.max(3,Math.round(6*scale))
+          arrow(ax-Math.cos(arrDir)*aLen*0.5, ay-Math.sin(arrDir)*aLen*0.5, arrDir, aLen, arrCol, 0, hSz)
+        }
+        dist+=arrowSpacing
+      }
+    }
+  }
+
+  // Region 1: inner sphere surface → shell inner surface (a → b)
+  drawAnnularLines(a*SCALE+3, b*SCALE-3, Q1)
+  // Region 2: shell outer surface → canvas edge (c → D)
+  drawAnnularLines(c*SCALE+3, D, Qtot)
 }
 
 // ── Main render ───────────────────────────────────────────────────────────
@@ -874,6 +1042,12 @@ function render(){
 
   if(sym==='magnetic'){
     drawMagneticField()
+  } else if(sc==='thick_shell'){
+    if(opts.lines) drawThickShellFieldLines()
+    scen.drawSource()
+    drawSphericalGaussian()
+    if(opts.flux) drawFluxArrowsSph()
+    if(opts.graph) drawEGraph()
   } else if(sym==='spherical'||sym==='cylindrical'){
     if(opts.lines) drawRadialFieldLines()
     scen.drawSource()
@@ -1124,6 +1298,9 @@ function updateSliderLabel(key,val){
     sig: v=>`${(+v).toFixed(1)} nC/m²`,
     d:   v=>`${(+v).toFixed(2)} m`,
     yoff:v=>`${(+v >= 0 ? '+' : '')}${(+v).toFixed(2)} m`,
+    Q2:  v=>`${(+v).toFixed(1)} nC`,
+    b:   v=>`${(+v).toFixed(2)} m`,
+    c:   v=>`${(+v).toFixed(2)} m`,
   }
   el.textContent=(fmts[key]||String)(val)
 }
@@ -1140,11 +1317,16 @@ function initEvents(){
 
   document.getElementById('scenarioSelect').addEventListener('change',e=>{
     sc=e.target.value
+    if(sc==='thick_shell'){
+      // Load geometry defaults: a=0.8 m, b=1.5 m, c=2.5 m, rg=3.2 m
+      Object.assign(p,{Q:3.0,Q2:-1.0,R:0.8,b:1.5,c:2.5,rg:3.2})
+      ;['Q','Q2','R','b','c','rg'].forEach(k=>setSlider(k,p[k]))
+    }
     syncParamVisibility()
     render()
   })
 
-  ;['Q','R','rg','lam','sig','d','yoff'].forEach(key=>{
+  ;['Q','R','rg','lam','sig','d','yoff','Q2','b','c'].forEach(key=>{
     const el=document.getElementById(`ps-${key}`)
     if(!el) return
     el.addEventListener('input',()=>{
@@ -1428,7 +1610,7 @@ render = function(){
 // ── Init ──────────────────────────────────────────────────────────────────
 function init(){
   syncParamVisibility()
-  Object.entries({Q:p.Q,R:p.R,rg:p.rg,lam:p.lam,sig:p.sig,d:p.d,yoff:p.yoff})
+  Object.entries({Q:p.Q,R:p.R,rg:p.rg,lam:p.lam,sig:p.sig,d:p.d,yoff:p.yoff,Q2:p.Q2,b:p.b,c:p.c})
     .forEach(([k,v])=>updateSliderLabel(k,v))
   initEvents()
   initLessons()
